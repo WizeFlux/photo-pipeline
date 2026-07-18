@@ -243,45 +243,38 @@ def gpu_saturation(
     if amount == 0 and vibrance == 0:
         return t
 
-    rgb = t  # work in 0-255 directly; only normalize for the weight calc
-    # Rec. 709 luma (perceptual gray) — same brightness the old HSL L approximates
-    luma = 0.2126 * rgb[..., 0] + 0.7152 * rgb[..., 1] + 0.0722 * rgb[..., 2]
-    chroma = rgb - luma.unsqueeze(-1)  # (H, W, 3) deviation from gray
+    # Work in 0-255 directly. Rec. 709 luma (perceptual gray).
+    luma = 0.2126 * t[..., 0] + 0.7152 * t[..., 1] + 0.0722 * t[..., 2]  # (H, W)
+    luma3 = luma.unsqueeze(-1)  # (H, W, 1) — broadcasts with (H, W, 3)
+    chroma = t - luma3  # (H, W, 3) deviation from gray
 
-    # ── Global saturation ──
+    # Global saturation factor (scalar — fast path)
     factor = 1.0 + amount / 100.0 if amount != 0 else 1.0
 
-    # ── Vibrance ──
-    # Vibrance needs the per-pixel existing saturation (for the weight that
-    # boosts low-saturated pixels more) and a skin-tone mask. Both are computed
-    # in RGB space — no hue / HSL round-trip required.
     if vibrance != 0:
-        maxc = rgb.max(dim=-1).values
-        minc = rgb.min(dim=-1).values
+        # Per-pixel existing saturation (0..1) — cheap, no hue
+        maxc = t.max(dim=-1).values
+        minc = t.min(dim=-1).values
         delta = maxc - minc
         l01 = luma / 255.0
         denom = (1.0 - (2.0 * l01 - 1.0).abs()).clamp(min=1e-6)
-        s_existing = (delta / 255.0) / denom  # 0..1
+        s_existing = (delta / 255.0) / denom
 
         v = vibrance / 100.0
-        # Boost low-saturated pixels more, high-saturated less (like the old code).
         weight = 1.0 - s_existing * 0.8  # 1.0 at gray, 0.2 at fully saturated
         vibrance_factor = 1.0 + v * weight * 0.6
-        # Combine with the global factor multiplicatively.
-        factor = factor * vibrance_factor
-        # Skin-tone protection: approximate (no hue). Skin tones are where R is
-        # the dominant channel and R-G is small/moderate. Reduce the boost there.
-        r, g, b = rgb[..., 0], rgb[..., 1], rgb[..., 2]
-        is_skin = ((r >= g) & (r >= b) & ((r - g) < 60) & (g > b * 0.6)).float()
-        skin_dampen = 1.0 - is_skin * abs(v) * 0.3
-        factor = factor * skin_dampen
+        factor = factor * vibrance_factor  # (H, W) tensor
 
-    # factor is either a python float (amount-only) or a tensor (vibrance on).
-    # Broadcast against the (H,W,3) chroma by promoting to a tensor.
-    if not torch.is_tensor(factor):
-        result = luma.unsqueeze(-1) + chroma * factor
+        # Skin-tone protection: approximate (no hue). Skin = R dominant, R-G small.
+        r, g, b = t[..., 0], t[..., 1], t[..., 2]
+        is_skin = ((r >= g) & (r >= b) & ((r - g) < 60) & (g > b * 0.6)).float()
+        factor = factor * (1.0 - is_skin * abs(v) * 0.3)
+
+        # factor (H,W) → (H,W,1) for broadcasting with chroma (H,W,3)
+        result = luma3 + chroma * factor.unsqueeze(-1)
     else:
-        result = luma.unsqueeze(-1) + chroma * factor.unsqueeze(-1)
+        # scalar factor — direct broadcast
+        result = luma3 + chroma * factor
     return result.clamp(0, 255)
 
 
