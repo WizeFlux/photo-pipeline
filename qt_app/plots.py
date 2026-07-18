@@ -60,8 +60,8 @@ def _style_axes(ax, title: str = "") -> None:
         spine.set_linewidth(0.5)
     ax.grid(True, color=_GRID, linewidth=0.5, alpha=0.8)
     # Twice as many grid lines via MaxNLocator
-    ax.xaxis.set_major_locator(MaxNLocator(nbins=18))
-    ax.yaxis.set_major_locator(MaxNLocator(nbins=12))
+    ax.xaxis.set_major_locator(MaxNLocator(nbins=36))
+    ax.yaxis.set_major_locator(MaxNLocator(nbins=24))
 
 
 def _draw_histograms_on_ax(ax, arr: np.ndarray) -> None:
