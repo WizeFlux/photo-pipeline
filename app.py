@@ -223,8 +223,6 @@ uploaded = sb.file_uploader(
 if uploaded:
     st.session_state.uploaded_file = uploaded.getvalue()
 
-sb.divider()
-
 # ─── Profile Management (accordion) ──────────────────────────────────────────
 
 if accordion_header("Profiles", "profiles", "📋"):
@@ -264,28 +262,18 @@ if accordion_header("Profiles", "profiles", "📋"):
             sb.success(f"Deleted: `{del_choice}`")
             st.rerun()
 
-sb.divider()
-
-# ─── 3rd Preview (accordion) ─────────────────────────────────────────────────
-
-if accordion_header("3rd Preview", "third_preview", "🖼️"):
-    if profiles_list:
+        sb.markdown("**3rd Preview**")
         third_profile = sb.selectbox(
             "Profile for 3rd preview", profiles_list,
             key="third_profile_select", index=0, label_visibility="collapsed",
         )
     else:
         third_profile = None
-        sb.caption("Save a profile to enable")
-else:
-    # Still need to read the selectbox value if it was set before
-    third_profile = st.session_state.get("third_profile_select", None) if profiles_list else None
 
-sb.divider()
+# Initialize third_profile from state (works whether profiles section is open or closed)
+third_profile = st.session_state.get("third_profile_select", None) if profiles_list else None
 
 # ─── Adjustments (accordion — one section at a time) ─────────────────────────
-
-sb.markdown("### 🎚️ Adjustments")
 
 adjustment_sections = [
     ("Exposure", "☀️"),
@@ -334,14 +322,11 @@ elif active == "LUT":
     sb.selectbox("LUT File", lut_files, key="lut_path", index=0, label_visibility="collapsed")
     slider_with_reset("LUT Intensity", "lut_intensity", 0.0, 1.0, 1.0, 0.01, "%.2f")
 
-sb.markdown("---")
 if sb.button("🔄 Reset All Sliders", use_container_width=True):
     for k in DEFAULTS:
         st.session_state[k] = DEFAULTS[k]
     st.session_state.lut_path = "None"
     st.rerun()
-
-sb.divider()
 
 # ─── Output (accordion) ──────────────────────────────────────────────────────
 
@@ -351,8 +336,6 @@ if accordion_header("Output", "output", "💾"):
     sb.slider("Quality", 1, 100, 90, key="output_quality")
     sb.number_input("Width (px)", value=0, step=100,
                     help="0 = original size", key="output_width")
-
-sb.divider()
 
 # ─── Batch Process (accordion) ───────────────────────────────────────────────
 
