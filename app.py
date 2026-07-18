@@ -235,7 +235,7 @@ if profiles_list:
 sb.markdown("### 💾 Output")
 sb.selectbox("Format", ["jpeg", "webp", "avif", "tiff"],
              key="output_format", index=0, label_visibility="collapsed")
-sb.slider("Quality", min_value=1, max_value=100, key="output_quality")
+sb.slider("Quality", min_value=1, max_value=100, value=st.session_state["output_quality"], key="output_quality")
 
 # Download (only if image uploaded)
 if st.session_state.uploaded_file:
@@ -410,31 +410,31 @@ with st.container():
 
     with adj_col1:
         st.markdown("#### ☀️ Exposure")
-        st.slider("EV", min_value=-3.0, max_value=3.0, step=0.01, key="ev", format="%.2f")
-        st.slider("Gamma", min_value=0.5, max_value=2.5, step=0.01, key="gamma", format="%.2f")
-        st.slider("Highlights", min_value=-100, max_value=100, step=1, key="highlights")
-        st.slider("Shadows", min_value=-100, max_value=100, step=1, key="shadows")
+        st.slider("EV", min_value=-3.0, max_value=3.0, value=st.session_state["ev"], step=0.01, key="ev", format="%.2f")
+        st.slider("Gamma", min_value=0.5, max_value=2.5, value=st.session_state["gamma"], step=0.01, key="gamma", format="%.2f")
+        st.slider("Highlights", min_value=-100, max_value=100, value=st.session_state["highlights"], step=1, key="highlights")
+        st.slider("Shadows", min_value=-100, max_value=100, value=st.session_state["shadows"], step=1, key="shadows")
 
     with adj_col2:
         st.markdown("#### 📊 Contrast")
-        st.slider("Amount", min_value=-100, max_value=100, step=1, key="contrast_amount")
-        st.slider("S-Curve", min_value=0, max_value=100, step=1, key="s_curve")
-        st.slider("Black Point", min_value=0, max_value=50, step=1, key="black_point")
-        st.slider("White Point", min_value=205, max_value=255, step=1, key="white_point")
+        st.slider("Amount", min_value=-100, max_value=100, value=st.session_state["contrast_amount"], step=1, key="contrast_amount")
+        st.slider("S-Curve", min_value=0, max_value=100, value=st.session_state["s_curve"], step=1, key="s_curve")
+        st.slider("Black Point", min_value=0, max_value=50, value=st.session_state["black_point"], step=1, key="black_point")
+        st.slider("White Point", min_value=205, max_value=255, value=st.session_state["white_point"], step=1, key="white_point")
 
     with adj_col3:
         st.markdown("#### 🌡️ White Balance")
-        st.slider("Temperature", min_value=-100, max_value=100, step=1, key="temperature")
-        st.slider("Tint", min_value=-100, max_value=100, step=1, key="tint")
+        st.slider("Temperature", min_value=-100, max_value=100, value=st.session_state["temperature"], step=1, key="temperature")
+        st.slider("Tint", min_value=-100, max_value=100, value=st.session_state["tint"], step=1, key="tint")
 
         st.markdown("#### 🎨 Saturation")
-        st.slider("Saturation", min_value=-100, max_value=100, step=1, key="saturation")
-        st.slider("Vibrance", min_value=-100, max_value=100, step=1, key="vibrance")
+        st.slider("Saturation", min_value=-100, max_value=100, value=st.session_state["saturation"], step=1, key="saturation")
+        st.slider("Vibrance", min_value=-100, max_value=100, value=st.session_state["vibrance"], step=1, key="vibrance")
 
     with adj_col4:
         st.markdown("#### 🎭 LUT")
         st.selectbox("LUT File", lut_files, key="lut_path", index=0, label_visibility="collapsed")
-        st.slider("Intensity", min_value=0.0, max_value=1.0, step=0.01, key="lut_intensity", format="%.2f")
+        st.slider("Intensity", min_value=0.0, max_value=1.0, value=st.session_state["lut_intensity"], step=0.01, key="lut_intensity", format="%.2f")
 
     st.markdown('</div>', unsafe_allow_html=True)
 
