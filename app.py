@@ -279,10 +279,10 @@ if st.session_state.uploaded_file:
     col1, col2 = st.columns(2)
     with col1:
         st.markdown("#### Before")
-        st.image(img_cropped, use_container_width=True)
+        st.image(img_cropped, width='stretch')
     with col2:
         st.markdown("#### After")
-        st.image(result, use_container_width=True)
+        st.image(result, width='stretch')
 
     # Download button
     st.markdown("---")
