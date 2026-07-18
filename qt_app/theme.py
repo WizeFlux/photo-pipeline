@@ -5,7 +5,7 @@ QWidget {
     background-color: #1e1e1e;
     color: #e0e0e0;
     font-size: 13px;
-    font-family: "SF Pro Text", "Helvetica Neue", "Segoe UI", sans-serif;
+    font-family: -apple-system, "Helvetica Neue", "Segoe UI", "Roboto", sans-serif;
 }
 
 QMainWindow, QDialog {
