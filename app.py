@@ -237,6 +237,27 @@ sb.selectbox("Format", ["jpeg", "webp", "avif", "tiff"],
              key="output_format", index=0, label_visibility="collapsed")
 sb.slider("Quality", 1, 100, 90, key="output_quality")
 
+# Download (only if image uploaded)
+if st.session_state.uploaded_file:
+    _img_dl = load_image_bytes(st.session_state.uploaded_file)
+    _params_dl = build_params_from_ui()
+    _fmt_dl = st.session_state.output_format
+    _q_dl = st.session_state.output_quality
+    _ext_dl = {"jpeg": "jpg", "webp": "webp", "avif": "avif", "tiff": "tiff"}[_fmt_dl]
+    _pil_fmt_dl = {"jpeg": "JPEG", "webp": "WEBP", "avif": "AVIF", "tiff": "TIFF"}[_fmt_dl]
+    _full_dl = process_single(_img_dl, _params_dl)
+    _buf_dl = io.BytesIO()
+    _kw_dl = {"quality": _q_dl} if _pil_fmt_dl in ("JPEG", "WEBP", "AVIF") else {}
+    if _pil_fmt_dl == "JPEG":
+        _kw_dl["subsampling"] = 0
+    _full_dl.save(_buf_dl, format=_pil_fmt_dl, **_kw_dl)
+    sb.download_button(
+        f"⬇️ Download ({_ext_dl.upper()})",
+        data=_buf_dl.getvalue(),
+        file_name=f"processed.{_ext_dl}",
+        mime=f"image/{_fmt_dl}",
+    )
+
 # Batch
 sb.markdown("### 📁 Batch")
 batch_input = sb.text_input("Input dir", value="", placeholder="/path/to/images",
@@ -363,27 +384,6 @@ else:
         st.markdown("#### After")
         st.image(result_live, width='stretch')
 
-# Download
-st.markdown("---")
-fmt = st.session_state.output_format
-quality = st.session_state.output_quality
-ext = {"jpeg": "jpg", "webp": "webp", "avif": "avif", "tiff": "tiff"}[fmt]
-pil_fmt = {"jpeg": "JPEG", "webp": "WEBP", "avif": "AVIF", "tiff": "TIFF"}[fmt]
-
-full_result = process_single(img, params)
-buf = io.BytesIO()
-save_kwargs = {"quality": quality} if pil_fmt in ("JPEG", "WEBP", "AVIF") else {}
-if pil_fmt == "JPEG":
-    save_kwargs["subsampling"] = 0
-full_result.save(buf, format=pil_fmt, **save_kwargs)
-
-st.download_button(
-    f"⬇️ Download ({ext.upper()})",
-    data=buf.getvalue(),
-    file_name=f"processed.{ext}",
-    mime=f"image/{fmt}",
-)
-
 
 # ─── Adjustments (4 columns, below images) ───────────────────────────────────
 
@@ -393,10 +393,13 @@ st.markdown("### 🎚️ Adjustments")
 # Compact CSS for adjustment sliders
 st.markdown("""
 <style>
-.adj-section .stSlider > div > div { padding-top: 0.5rem; padding-bottom: 0.5rem; }
-.adj-section .stMarkdown h4 { font-size: 0.95rem; margin-bottom: 0.3rem; }
-.adj-section .stSlider label { font-size: 0.85rem; margin-bottom: 0; }
-.adj-section .stSlider { margin-bottom: 0.3rem; }
+/* Compact adjustments section */
+.adj-section .stSlider { margin-bottom: 0.25rem !important; }
+.adj-section .stSlider > div { padding-top: 0.25rem !important; padding-bottom: 0.25rem !important; }
+.adj-section .stSlider label { font-size: 0.8rem !important; margin-bottom: 0 !important; line-height: 1.2 !important; }
+.adj-section .stMarkdown h4 { font-size: 0.9rem !important; margin-top: 0.3rem !important; margin-bottom: 0.2rem !important; }
+.adj-section .stSelectbox { margin-bottom: 0.25rem !important; }
+.adj-section .stSelectbox label { font-size: 0.8rem !important; }
 </style>
 """, unsafe_allow_html=True)
 
