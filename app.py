@@ -649,26 +649,29 @@ with st.expander("📊 Channel Deltas (After − Original)", expanded=False):
     Positive = brightened, negative = darkened.
     """
     bins = np.arange(0, 257, 1)
-    channels = [("Red", "#ff4444"), ("Green", "#44ff44"), ("Blue", "#4488ff")]
+    channels = [("Red", "#ff4444", "rgba(255,68,68,0.2)"),
+                ("Green", "#44ff44", "rgba(68,255,68,0.2)"),
+                ("Blue", "#4488ff", "rgba(68,136,255,0.2)")]
 
     fig2 = go.Figure()
-    for i, (ch_name, color) in enumerate(channels):
+    for i, (ch_name, color, fillcolor) in enumerate(channels):
         orig_hist, _ = np.histogram(orig_arr[..., i], bins=bins)
         proc_hist, _ = np.histogram(proc_arr[..., i], bins=bins)
         delta = proc_hist.astype(np.float64) - orig_hist.astype(np.float64)
         fig2.add_trace(go.Scatter(
             x=bins[:-1], y=delta, name=ch_name,
             line=dict(color=color, width=2),
-            fill="tozeroy", fillcolor=color.replace("#", "rgba(") + ",0.2)",
+            fill="tozeroy", fillcolor=fillcolor,
         ))
 
     fig2.update_layout(
-        title="Per-Channel Delta: Live − Original",
+        title="Live − Original",
         xaxis_title="Value (0–255)", yaxis_title="Δ Pixel count",
         height=320, margin=dict(l=40, r=20, t=50, b=40),
         legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
         template="plotly_dark",
         hovermode="x unified",
+        showlegend=True,
     )
     st.plotly_chart(fig2, width='stretch')
 
@@ -676,14 +679,14 @@ with st.expander("📊 Channel Deltas (After − Original)", expanded=False):
     if result_profile is not None:
         st.markdown("**Profile − Original:**")
         fig2b = go.Figure()
-        for i, (ch_name, color) in enumerate(channels):
+        for i, (ch_name, color, fillcolor) in enumerate(channels):
             orig_hist, _ = np.histogram(orig_arr[..., i], bins=bins)
             prof_hist, _ = np.histogram(np.array(result_profile, dtype=np.float64)[..., i], bins=bins)
             delta = prof_hist.astype(np.float64) - orig_hist.astype(np.float64)
             fig2b.add_trace(go.Scatter(
                 x=bins[:-1], y=delta, name=ch_name,
                 line=dict(color=color, width=2),
-                fill="tozeroy", fillcolor=color.replace("#", "rgba(") + ",0.2)",
+                fill="tozeroy", fillcolor=fillcolor,
             ))
         fig2b.update_layout(
             xaxis_title="Value (0–255)", yaxis_title="Δ Pixel count",
@@ -691,6 +694,7 @@ with st.expander("📊 Channel Deltas (After − Original)", expanded=False):
             legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
             template="plotly_dark",
             hovermode="x unified",
+            showlegend=True,
         )
         st.plotly_chart(fig2b, width='stretch')
 
