@@ -57,9 +57,12 @@ class ImageViewer(QLabel):
         bytes_per_line = 3 * w
         qimg = QImage(self._arr.tobytes(), w, h, bytes_per_line, QImage.Format_RGB888)
         pix = QPixmap.fromImage(qimg)
-        # Scale to fit while keeping aspect ratio
+        # Scale to fit the content rect (already accounts for margins)
+        rect = self.contentsRect()
+        if rect.width() <= 0 or rect.height() <= 0:
+            return
         scaled = pix.scaled(
-            self.size() - self.contentsMargins(),
+            rect.size(),
             Qt.KeepAspectRatio,
             Qt.SmoothTransformation,
         )
