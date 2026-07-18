@@ -79,21 +79,23 @@ def process_single(img: Image.Image, params: dict) -> Image.Image:
 
 
 def build_params_from_ui() -> dict:
+    """Read params from session state with safe defaults."""
+    _g = lambda k, d: st.session_state.get(k, d)
     return {
-        "ev": st.session_state.ev,
-        "gamma": st.session_state.gamma,
-        "highlights": st.session_state.highlights,
-        "shadows": st.session_state.shadows,
-        "contrast_amount": st.session_state.contrast_amount,
-        "s_curve": st.session_state.s_curve,
-        "black_point": st.session_state.black_point,
-        "white_point": st.session_state.white_point,
-        "temperature": st.session_state.temperature,
-        "tint": st.session_state.tint,
-        "saturation": st.session_state.saturation,
-        "vibrance": st.session_state.vibrance,
-        "lut_path": st.session_state.lut_path if st.session_state.lut_path != "None" else None,
-        "lut_intensity": st.session_state.lut_intensity,
+        "ev": _g("ev", 0.0),
+        "gamma": _g("gamma", 1.0),
+        "highlights": _g("highlights", 0),
+        "shadows": _g("shadows", 0),
+        "contrast_amount": _g("contrast_amount", 0),
+        "s_curve": _g("s_curve", 0),
+        "black_point": _g("black_point", 0),
+        "white_point": _g("white_point", 255),
+        "temperature": _g("temperature", 0),
+        "tint": _g("tint", 0),
+        "saturation": _g("saturation", 0),
+        "vibrance": _g("vibrance", 0),
+        "lut_path": _g("lut_path", "None") if _g("lut_path", "None") != "None" else None,
+        "lut_intensity": _g("lut_intensity", 1.0),
     }
 
 
@@ -213,8 +215,8 @@ if sb.button("💾 Save", key="save_profile_btn", use_container_width=True):
     if save_name.strip():
         params = build_params_from_ui()
         output_cfg = {
-            "format": st.session_state.output_format,
-            "quality": st.session_state.output_quality,
+            "format": st.session_state.get("output_format", "jpeg"),
+            "quality": st.session_state.get("output_quality", 90),
         }
         saved_path = save_profile(save_name.strip(), params, output_cfg)
         sb.success(f"Saved: `{saved_path.name}`")
@@ -239,8 +241,8 @@ sb.slider("Quality", min_value=1, max_value=100, value=90, key="output_quality")
 if st.session_state.uploaded_file:
     _img_dl = load_image_bytes(st.session_state.uploaded_file)
     _params_dl = build_params_from_ui()
-    _fmt_dl = st.session_state.output_format
-    _q_dl = st.session_state.output_quality
+    _fmt_dl = st.session_state.get("output_format", "jpeg")
+    _q_dl = st.session_state.get("output_quality", 90)
     _ext_dl = {"jpeg": "jpg", "webp": "webp", "avif": "avif", "tiff": "tiff"}[_fmt_dl]
     _pil_fmt_dl = {"jpeg": "JPEG", "webp": "WEBP", "avif": "AVIF", "tiff": "TIFF"}[_fmt_dl]
     _full_dl = process_single(_img_dl, _params_dl)
@@ -287,23 +289,24 @@ if st.session_state.get("batch_run"):
     if not input_dir.exists():
         st.error(f"Input directory not found: {input_dir}")
     else:
+        _p = build_params_from_ui()
         overrides = {
-            "exposure.ev": st.session_state.ev,
-            "exposure.gamma": st.session_state.gamma,
-            "exposure.highlights": st.session_state.highlights,
-            "exposure.shadows": st.session_state.shadows,
-            "contrast.amount": st.session_state.contrast_amount,
-            "contrast.s_curve": st.session_state.s_curve,
-            "contrast.black_point": st.session_state.black_point,
-            "contrast.white_point": st.session_state.white_point,
-            "white_balance.temperature": st.session_state.temperature,
-            "white_balance.tint": st.session_state.tint,
-            "saturation.amount": st.session_state.saturation,
-            "saturation.vibrance": st.session_state.vibrance,
-            "lut.path": st.session_state.lut_path if st.session_state.lut_path != "None" else None,
-            "lut.intensity": st.session_state.lut_intensity,
-            "output.format": st.session_state.output_format,
-            "output.quality": st.session_state.output_quality,
+            "exposure.ev": _p["ev"],
+            "exposure.gamma": _p["gamma"],
+            "exposure.highlights": _p["highlights"],
+            "exposure.shadows": _p["shadows"],
+            "contrast.amount": _p["contrast_amount"],
+            "contrast.s_curve": _p["s_curve"],
+            "contrast.black_point": _p["black_point"],
+            "contrast.white_point": _p["white_point"],
+            "white_balance.temperature": _p["temperature"],
+            "white_balance.tint": _p["tint"],
+            "saturation.amount": _p["saturation"],
+            "saturation.vibrance": _p["vibrance"],
+            "lut.path": _p["lut_path"],
+            "lut.intensity": _p["lut_intensity"],
+            "output.format": st.session_state.get("output_format", "jpeg"),
+            "output.quality": st.session_state.get("output_quality", 90),
         }
         from pipeline.processor import Pipeline
         pipe = Pipeline.from_profile(None, overrides)
