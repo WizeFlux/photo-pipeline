@@ -230,6 +230,15 @@ uploaded = sb.file_uploader(
 if uploaded:
     st.session_state.uploaded_file = uploaded.getvalue()
 
+# 3rd Preview — always visible, right after image upload
+if profiles_list:
+    third_profile = sb.selectbox(
+        "🖼️ 3rd Preview", profiles_list,
+        key="third_profile_select", index=0,
+    )
+else:
+    third_profile = None
+
 # ─── Profile Management (accordion) ──────────────────────────────────────────
 
 if accordion_header("Profiles", "profiles", "📋"):
@@ -268,15 +277,6 @@ if accordion_header("Profiles", "profiles", "📋"):
             (PROFILES_DIR / del_choice).unlink()
             sb.success(f"Deleted: `{del_choice}`")
             st.rerun()
-
-# 3rd Preview — always visible, outside accordion (single selectbox)
-if profiles_list:
-    third_profile = sb.selectbox(
-        "🖼️ 3rd Preview", profiles_list,
-        key="third_profile_select", index=0,
-    )
-else:
-    third_profile = None
 
 # ─── Adjustments (accordion — one section at a time) ─────────────────────────
 
