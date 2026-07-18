@@ -1,9 +1,4 @@
-"""Profile management panel — load/save/delete YAML presets.
-
-Signals:
-    applyProfile(str):  user clicked Apply → main window pushes to sliders.
-    profilesChanged():  a profile was saved or deleted → refresh dropdowns.
-"""
+"""Profile management — compact 3-row panel (Apply | Save | Delete)."""
 
 from __future__ import annotations
 
@@ -17,10 +12,10 @@ from qt_app.state import delete_profile, list_profiles
 
 
 class ProfilesPanel(QWidget):
-    """Three-row panel: Apply | Save | Delete."""
+    """3 rows: Apply / Save / Delete."""
 
     applyProfile = Signal(str)
-    saveProfile = Signal(str)   # user requested save → main window provides params
+    saveProfile = Signal(str)
     profilesChanged = Signal()
 
     def __init__(self, parent=None):
@@ -33,37 +28,42 @@ class ProfilesPanel(QWidget):
         outer.setContentsMargins(0, 0, 0, 0)
         outer.addWidget(group)
         layout = QVBoxLayout(group)
-        layout.setSpacing(6)
+        layout.setContentsMargins(6, 10, 6, 6)
+        layout.setSpacing(4)
 
-        # ── Apply row ──
+        # Apply
         apply_row = QHBoxLayout()
-        apply_row.addWidget(QLabel("YAML → Sliders"))
+        apply_row.setSpacing(4)
+        apply_row.addWidget(QLabel("Apply"))
         self.apply_combo = QComboBox()
-        self.apply_combo.setMinimumWidth(160)
         apply_row.addWidget(self.apply_combo, 1)
-        apply_btn = QPushButton("⬆️ Apply")
+        apply_btn = QPushButton("⬆️")
+        apply_btn.setMaximumWidth(32)
         apply_btn.clicked.connect(self._on_apply)
         apply_row.addWidget(apply_btn)
         layout.addLayout(apply_row)
 
-        # ── Save row ──
+        # Save
         save_row = QHBoxLayout()
-        save_row.addWidget(QLabel("Sliders → YAML"))
+        save_row.setSpacing(4)
+        save_row.addWidget(QLabel("Save"))
         self.name_input = QLineEdit()
-        self.name_input.setPlaceholderText("profile name")
+        self.name_input.setPlaceholderText("name")
         save_row.addWidget(self.name_input, 1)
-        save_btn = QPushButton("💾 Save")
+        save_btn = QPushButton("💾")
+        save_btn.setMaximumWidth(32)
         save_btn.clicked.connect(self._on_save)
         save_row.addWidget(save_btn)
         layout.addLayout(save_row)
 
-        # ── Delete row ──
+        # Delete
         del_row = QHBoxLayout()
+        del_row.setSpacing(4)
         del_row.addWidget(QLabel("Delete"))
         self.delete_combo = QComboBox()
-        self.delete_combo.setMinimumWidth(160)
         del_row.addWidget(self.delete_combo, 1)
-        del_btn = QPushButton("🗑️ Delete")
+        del_btn = QPushButton("🗑️")
+        del_btn.setMaximumWidth(32)
         del_btn.clicked.connect(self._on_delete)
         del_row.addWidget(del_btn)
         layout.addLayout(del_row)
@@ -86,31 +86,24 @@ class ProfilesPanel(QWidget):
         name = self.delete_combo.currentText()
         if not name:
             return
-        confirm = QMessageBox.question(
-            self, "Delete profile",
-            f"Delete '{name}'?",
-        )
-        if confirm != QMessageBox.Yes:
+        if QMessageBox.question(self, "Delete", f"Delete '{name}'?") != QMessageBox.Yes:
             return
         if delete_profile(name):
             self.profilesChanged.emit()
 
-    # Public API ───────────────────────────────────────────────────────────────
-
     def refresh(self) -> None:
         profiles = list_profiles()
-        # Preserve current selection where possible
-        current_apply = self.apply_combo.currentText()
-        current_delete = self.delete_combo.currentText()
+        cur_a = self.apply_combo.currentText()
+        cur_d = self.delete_combo.currentText()
         self.apply_combo.blockSignals(True)
         self.delete_combo.blockSignals(True)
         self.apply_combo.clear()
         self.delete_combo.clear()
         self.apply_combo.addItems(profiles)
         self.delete_combo.addItems(profiles)
-        if current_apply and self.apply_combo.findText(current_apply) >= 0:
-            self.apply_combo.setCurrentText(current_apply)
-        if current_delete and self.delete_combo.findText(current_delete) >= 0:
-            self.delete_combo.setCurrentText(current_delete)
+        if cur_a and self.apply_combo.findText(cur_a) >= 0:
+            self.apply_combo.setCurrentText(cur_a)
+        if cur_d and self.delete_combo.findText(cur_d) >= 0:
+            self.delete_combo.setCurrentText(cur_d)
         self.apply_combo.blockSignals(False)
         self.delete_combo.blockSignals(False)

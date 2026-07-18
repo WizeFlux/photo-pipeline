@@ -3,34 +3,32 @@
 Layout:
   ┌─────────────────────────────────────────────────────────────┐
   │ Toolbar: [Open Image] [3rd Profile ▾] [Reset]               │
-  ├──────────────────────────┬──────────────────────────────────┤
-  │ Previews (3 in a row)     │ Adjustments  │ Profiles         │
-  │                           │              │ Batch            │
-  │                           │              │                  │
-  ├───────────────────────────┴──────────────┴──────────────────┤
-  │ Plots + Stats table (scrollable)                            │
+  ├═════════════════════════════════════════════════════════════┤  ← drag
+  │ Previews (3 in a row) — height resizable via splitter        │
+  ├─────────────────────────────────────────────────────────────┤
+  │ Row 1: Exposure | Contrast | WB | Saturation  (one row)     │
+  │ Row 2: LUT | Profiles | Batch                  (one row)     │
+  ├─────────────────────────────────────────────────────────────┤
+  │ Stats (transposed) + Plots (scrollable, resizable heights)   │
   └─────────────────────────────────────────────────────────────┘
 """
 
 from __future__ import annotations
 
-import io
 from pathlib import Path
 
-from PIL import Image
 from PySide6.QtCore import Qt, QTimer
-from PySide6.QtGui import QAction
 from PySide6.QtWidgets import (
-    QComboBox, QFileDialog, QHBoxLayout, QMainWindow, QMessageBox, QPushButton,
-    QSplitter, QVBoxLayout, QWidget,
+    QComboBox, QFileDialog, QHBoxLayout, QLabel, QMainWindow, QMessageBox,
+    QPushButton, QSplitter, QVBoxLayout, QWidget,
 )
 
-from pipeline.gpu_ops import DEVICE, gpu_process_from_pil
+from pipeline.gpu_ops import DEVICE
 from qt_app.state import (
     load_profile_params, params_from_values, save_profile,
 )
 from qt_app.theme import apply_theme
-from qt_app.widgets.adjustments import AdjustmentsPanel
+from qt_app.widgets.adjustments import AdjustmentsPanel, LutPanel
 from qt_app.widgets.batch import BatchPanel
 from qt_app.widgets.image_viewer import ImageViewer
 from qt_app.widgets.plots_panel import PlotsPanel
@@ -65,17 +63,20 @@ class MainWindow(QMainWindow):
         central = QWidget()
         self.setCentralWidget(central)
         root = QVBoxLayout(central)
-        root.setContentsMargins(10, 10, 10, 10)
-        root.setSpacing(8)
+        root.setContentsMargins(8, 8, 8, 8)
+        root.setSpacing(6)
 
         # ── Toolbar ──
         toolbar = QHBoxLayout()
+        toolbar.setSpacing(8)
         open_btn = QPushButton("📂 Open Image")
         open_btn.clicked.connect(self._on_open)
         toolbar.addWidget(open_btn)
 
-        toolbar.addSpacing(16)
-        toolbar.addWidget(self._label("3rd Profile:"))
+        toolbar.addSpacing(12)
+        lbl = QLabel("3rd Profile:")
+        lbl.setObjectName("value-label")
+        toolbar.addWidget(lbl)
         self.third_profile_combo = QComboBox()
         self.third_profile_combo.setMinimumWidth(160)
         self._refresh_profile_combo(self.third_profile_combo)
@@ -88,52 +89,63 @@ class MainWindow(QMainWindow):
         toolbar.addWidget(reset_btn)
         root.addLayout(toolbar)
 
-        # ── Previews row ──
-        previews_row = QHBoxLayout()
+        # ── Main vertical splitter: [previews | controls | plots] ──
+        main_splitter = QSplitter(Qt.Vertical)
+        main_splitter.setHandleWidth(6)
+
+        # ── Row: previews (3 in a row) ──
+        previews_widget = QWidget()
+        previews_layout = QHBoxLayout(previews_widget)
+        previews_layout.setContentsMargins(0, 0, 0, 0)
+        previews_layout.setSpacing(4)
         self.viewer_original = ImageViewer("Original")
         self.viewer_live = ImageViewer("Live Sliders")
         self.viewer_profile = ImageViewer("Profile")
         for v in (self.viewer_original, self.viewer_live, self.viewer_profile):
-            previews_row.addWidget(v, 1)
-        root.addLayout(previews_row, 0)
+            previews_layout.addWidget(v, 1)
+        main_splitter.addWidget(previews_widget)
 
-        # ── Middle: adjustments + right column (profiles, batch) ──
-        splitter = QSplitter(Qt.Horizontal)
-
+        # ── Row 1: adjustments (4 groups in a row) ──
         self.adjustments = AdjustmentsPanel()
-        splitter.addWidget(self.adjustments)
+        main_splitter.addWidget(self.adjustments)
 
-        right_col = QWidget()
-        right_layout = QVBoxLayout(right_col)
-        right_layout.setContentsMargins(0, 0, 0, 0)
+        # ── Row 2: LUT + Profiles + Batch (one row) ──
+        controls2 = QWidget()
+        controls2_layout = QHBoxLayout(controls2)
+        controls2_layout.setContentsMargins(0, 0, 0, 0)
+        controls2_layout.setSpacing(6)
+        self.lut_panel = LutPanel()
+        controls2_layout.addWidget(self.lut_panel, 1)
         self.profiles_panel = ProfilesPanel()
-        right_layout.addWidget(self.profiles_panel)
+        controls2_layout.addWidget(self.profiles_panel, 1)
         self.batch_panel = BatchPanel()
-        right_layout.addWidget(self.batch_panel)
-        right_layout.addStretch()
-        splitter.addWidget(right_col)
+        controls2_layout.addWidget(self.batch_panel, 1)
+        main_splitter.addWidget(controls2)
 
-        splitter.setStretchFactor(0, 3)
-        splitter.setStretchFactor(1, 2)
-        root.addWidget(splitter, 1)
-
-        # ── Bottom: plots + stats ──
+        # ── Row: stats + plots ──
         self.plots_panel = PlotsPanel()
-        root.addWidget(self.plots_panel, 2)
+        main_splitter.addWidget(self.plots_panel)
+
+        # Stretch factors: previews get the most, controls are compact
+        main_splitter.setStretchFactor(0, 4)   # previews
+        main_splitter.setStretchFactor(1, 2)   # adjustments
+        main_splitter.setStretchFactor(2, 2)   # LUT/Profiles/Batch
+        main_splitter.setStretchFactor(3, 5)   # plots
+        # Initial sizes
+        main_splitter.setSizes([320, 170, 150, 360])
+
+        root.addWidget(main_splitter, 1)
+
+        self._main_splitter = main_splitter
 
         # ── Status bar ──
         self.statusBar().showMessage(f"Device: {DEVICE}")
-
-    def _label(self, text: str):
-        from PySide6.QtWidgets import QLabel
-        lbl = QLabel(text)
-        lbl.setObjectName("value-label")
-        return lbl
 
     # ─── Signal wiring ────────────────────────────────────────────────────────
 
     def _connect_signals(self) -> None:
         self.adjustments.paramsChanged.connect(self._schedule_preview)
+        self.lut_panel.paramsChanged.connect(self._schedule_preview)
         self.profiles_panel.applyProfile.connect(self._on_apply_profile)
         self.profiles_panel.saveProfile.connect(self._on_save_profile)
         self.profiles_panel.profilesChanged.connect(self._on_profiles_changed)
@@ -170,15 +182,18 @@ class MainWindow(QMainWindow):
 
     def _on_reset(self) -> None:
         self.adjustments.reset()
+        self.lut_panel.set_params({"lut_path": "None", "lut_intensity": 1.0})
+        self.lut_panel._emit_params()
 
     def _on_apply_profile(self, name: str) -> None:
         params = load_profile_params(name)
         if params is not None:
             self.adjustments.set_params(params)
+            self.lut_panel.set_params(params)
             self._schedule_preview()
 
     def _on_save_profile(self, name: str) -> None:
-        params = params_from_values(self.adjustments.get_params())
+        params = params_from_values(self._collect_params())
         path = save_profile(name, params)
         self.statusBar().showMessage(f"Saved profile: {Path(path).name}")
         self._on_profiles_changed()
@@ -190,7 +205,7 @@ class MainWindow(QMainWindow):
         if not Path(input_dir).is_dir():
             self.batch_panel.set_status("Input directory not found.")
             return
-        params = params_from_values(self.adjustments.get_params())
+        params = params_from_values(self._collect_params())
         self.batch_panel.set_status("Processing…")
         self._batch_worker = BatchWorker(input_dir, output_dir, params, use_gpu)
         self._batch_worker.finished_batch.connect(self._on_batch_done)
@@ -199,12 +214,20 @@ class MainWindow(QMainWindow):
 
     def _on_batch_done(self, success: int, failed: int, output_dir: str) -> None:
         self.batch_panel.set_status(
-            f"✅ {success} processed, ❌ {failed} failed → {output_dir}"
+            f"✅ {success} ok, ❌ {failed} failed → {output_dir}"
         )
         self.statusBar().showMessage(f"Batch done: {success} ok, {failed} failed")
 
     def _on_batch_failed(self, msg: str) -> None:
         self.batch_panel.set_status(f"Error: {msg}")
+
+    # ─── Params collection ────────────────────────────────────────────────────
+
+    def _collect_params(self) -> dict:
+        """Merge params from AdjustmentsPanel + LutPanel."""
+        params = self.adjustments.get_params()
+        params.update(self.lut_panel.get_params())
+        return params
 
     # ─── Preview pipeline ─────────────────────────────────────────────────────
 
@@ -215,12 +238,11 @@ class MainWindow(QMainWindow):
     def _run_preview(self) -> None:
         if not self._image_path:
             return
-        # Cancel an in-flight worker
         if self._preview_worker and self._preview_worker.isRunning():
             self._preview_worker.quit()
             self._preview_worker.wait(200)
 
-        params = self.adjustments.get_params()
+        params = self._collect_params()
         third = self.third_profile_combo.currentText()
         self._preview_worker = PreviewWorker(
             self._image_path, params, third if third != "None" else None
@@ -242,8 +264,7 @@ class MainWindow(QMainWindow):
         else:
             self.viewer_profile.set_array(None)
             self.viewer_profile.set_title("Profile")
-        # Update plots
-        params = params_from_values(self.adjustments.get_params())
+        params = params_from_values(self._collect_params())
         prof_name = self.third_profile_combo.currentText()
         if prof_name == "None":
             prof_name = None
