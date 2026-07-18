@@ -98,11 +98,7 @@ QComboBox QAbstractItemView {
     selection-color: #1e1e1e;
 }
 
-/* ─── Scroll area ─────────────────────────────────────────────── */
-QScrollArea {
-    border: none;
-    background: transparent;
-}
+/* ─── Scroll bars (kept subtle — shown only when a widget truly overflows) ── */
 QScrollBar:vertical {
     background: #1e1e1e;
     width: 10px;
@@ -118,6 +114,22 @@ QScrollBar::handle:vertical:hover {
 }
 QScrollBar::add-line, QScrollBar::sub-line {
     height: 0;
+}
+QScrollBar:horizontal {
+    background: #1e1e1e;
+    height: 10px;
+    margin: 0;
+}
+QScrollBar::handle:horizontal {
+    background: #3a3a3a;
+    min-width: 30px;
+    border-radius: 5px;
+}
+QScrollBar::handle:horizontal:hover {
+    background: #505050;
+}
+QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {
+    width: 0;
 }
 
 /* ─── Status bar ──────────────────────────────────────────────── */

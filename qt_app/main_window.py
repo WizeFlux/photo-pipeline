@@ -22,7 +22,7 @@ from PySide6.QtCore import Qt, QTimer
 from PySide6.QtGui import QAction
 from PySide6.QtWidgets import (
     QComboBox, QFileDialog, QHBoxLayout, QMainWindow, QMessageBox, QPushButton,
-    QScrollArea, QSplitter, QVBoxLayout, QWidget,
+    QSplitter, QVBoxLayout, QWidget,
 )
 
 from pipeline.gpu_ops import DEVICE, gpu_process_from_pil
@@ -101,7 +101,7 @@ class MainWindow(QMainWindow):
         splitter = QSplitter(Qt.Horizontal)
 
         self.adjustments = AdjustmentsPanel()
-        splitter.addWidget(self._wrap_scroll(self.adjustments))
+        splitter.addWidget(self.adjustments)
 
         right_col = QWidget()
         right_layout = QVBoxLayout(right_col)
@@ -111,7 +111,7 @@ class MainWindow(QMainWindow):
         self.batch_panel = BatchPanel()
         right_layout.addWidget(self.batch_panel)
         right_layout.addStretch()
-        splitter.addWidget(self._wrap_scroll(right_col))
+        splitter.addWidget(right_col)
 
         splitter.setStretchFactor(0, 3)
         splitter.setStretchFactor(1, 2)
@@ -119,7 +119,7 @@ class MainWindow(QMainWindow):
 
         # ── Bottom: plots + stats ──
         self.plots_panel = PlotsPanel()
-        root.addWidget(self._wrap_scroll(self.plots_panel), 2)
+        root.addWidget(self.plots_panel, 2)
 
         # ── Status bar ──
         self.statusBar().showMessage(f"Device: {DEVICE}")
@@ -129,12 +129,6 @@ class MainWindow(QMainWindow):
         lbl = QLabel(text)
         lbl.setObjectName("value-label")
         return lbl
-
-    def _wrap_scroll(self, widget: QWidget) -> QScrollArea:
-        scroll = QScrollArea()
-        scroll.setWidgetResizable(True)
-        scroll.setWidget(widget)
-        return scroll
 
     # ─── Signal wiring ────────────────────────────────────────────────────────
 

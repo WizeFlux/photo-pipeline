@@ -7,6 +7,7 @@ the statistics comparison.
 from __future__ import annotations
 
 import numpy as np
+from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
     QGroupBox, QHBoxLayout, QHeaderView, QLabel, QTableWidget, QTableWidgetItem,
     QVBoxLayout, QWidget,
@@ -75,6 +76,10 @@ class PlotsPanel(QWidget):
             header.setSectionResizeMode(i, QHeaderView.ResizeToContents)
         self.stats_table.verticalHeader().setVisible(False)
         self.stats_table.setEditTriggers(QTableWidget.NoEditTriggers)
+        # No internal scrollbars — the panel is not scroll-wrapped anymore
+        self.stats_table.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.stats_table.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.stats_table.setHorizontalScrollMode(QTableWidget.ScrollPerPixel)
         stats_layout.addWidget(self.stats_table)
         layout.addWidget(stats_group)
 
