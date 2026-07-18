@@ -107,8 +107,8 @@ class PlotsPanel(QWidget):
             return
         _draw_plot(self.canvas_left.figure, self.selector_left.currentText(), self._data)
         _draw_plot(self.canvas_right.figure, self.selector_right.currentText(), self._data)
-        self.canvas_left.canvas.draw()
-        self.canvas_right.canvas.draw()
+        self.canvas_left.canvas.draw_idle()
+        self.canvas_right.canvas.draw_idle()
 
     def update_all(
         self,
@@ -129,7 +129,10 @@ class PlotsPanel(QWidget):
             "profile_name": profile_name, "params": params,
             "third_params": third_params,
         }
-        self._redraw_plots()
+        # Defer plot drawing to next event loop tick — lets the viewers
+        # paint first (they're fast), so the UI feels more responsive.
+        from PySide6.QtCore import QTimer
+        QTimer.singleShot(0, self._redraw_plots)
 
     def _clear_all(self) -> None:
         self._data = None
