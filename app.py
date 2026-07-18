@@ -160,11 +160,6 @@ DEFAULTS = {
 }
 
 
-def save_third_profile():
-    """Persist third_profile_select value so it survives section collapse."""
-    st.session_state["third_profile_value"] = st.session_state.get("third_profile_select", None)
-
-
 def apply_profile_to_state(profile_name: str):
     path = PROFILES_DIR / profile_name
     if not path.exists():
@@ -274,21 +269,14 @@ if accordion_header("Profiles", "profiles", "📋"):
             sb.success(f"Deleted: `{del_choice}`")
             st.rerun()
 
-        sb.markdown("**3rd Preview**")
-        # Restore saved selection index so reopening section doesn't reset it
-        saved = st.session_state.get("third_profile_value", None)
-        saved_idx = profiles_list.index(saved) if saved and saved in profiles_list else 0
-        third_profile = sb.selectbox(
-            "Profile for 3rd preview", profiles_list,
-            key="third_profile_select", index=saved_idx, label_visibility="collapsed",
-            on_change=save_third_profile,
-        )
-        st.session_state["third_profile_value"] = third_profile
-    else:
-        third_profile = None
-
-# Use persistent value (survives section collapse)
-third_profile = st.session_state.get("third_profile_value", None) if profiles_list else None
+# 3rd Preview — always visible, outside accordion (single selectbox)
+if profiles_list:
+    third_profile = sb.selectbox(
+        "🖼️ 3rd Preview", profiles_list,
+        key="third_profile_select", index=0, label_visibility="label",
+    )
+else:
+    third_profile = None
 
 # ─── Adjustments (accordion — one section at a time) ─────────────────────────
 
