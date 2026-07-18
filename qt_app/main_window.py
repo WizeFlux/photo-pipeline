@@ -20,8 +20,8 @@ from pathlib import Path
 
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtWidgets import (
-    QComboBox, QFileDialog, QHBoxLayout, QLabel, QMainWindow, QMessageBox,
-    QPushButton, QSizePolicy, QSplitter, QVBoxLayout, QWidget,
+    QComboBox, QFileDialog, QFrame, QHBoxLayout, QLabel, QMainWindow,
+    QMessageBox, QPushButton, QSizePolicy, QSplitter, QVBoxLayout, QWidget,
 )
 
 from pipeline.gpu_ops import DEVICE
@@ -100,7 +100,7 @@ class MainWindow(QMainWindow):
         self.third_profile_combo = QComboBox()
         self.third_profile_combo.setMinimumWidth(140)
         self._refresh_profile_combo(self.third_profile_combo)
-        self.third_profile_combo.currentTextChanged.connect(self._schedule_preview)
+        self.third_profile_combo.currentTextChanged.connect(self._on_third_profile_changed)
         toolbar.addWidget(self.third_profile_combo)
 
         toolbar.addStretch()
@@ -115,6 +115,14 @@ class MainWindow(QMainWindow):
         toolbar.addWidget(reset_btn)
         root.addLayout(toolbar)
 
+        # ── Accent separator between toolbar and content ──
+        separator = QFrame()
+        separator.setFrameShape(QFrame.HLine)
+        separator.setFixedHeight(2)
+        separator.setStyleSheet("background-color: #00d4aa; border: none;")
+        root.addWidget(separator)
+        root.addSpacing(4)
+
         # ── Adjustments row (fixed height) ──
         self.adjustments = AdjustmentsPanel()
         self.adjustments.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
@@ -124,17 +132,19 @@ class MainWindow(QMainWindow):
         self.main_splitter = QSplitter(Qt.Vertical)
         self.main_splitter.setHandleWidth(8)
 
-        # Previews
-        previews_widget = QWidget()
-        previews_layout = QHBoxLayout(previews_widget)
-        previews_layout.setContentsMargins(0, 0, 0, 0)
-        previews_layout.setSpacing(3)
+        # Previews — 2 or 3 viewers depending on 3rd profile selection
+        self.previews_widget = QWidget()
+        self.previews_layout = QHBoxLayout(self.previews_widget)
+        self.previews_layout.setContentsMargins(0, 0, 0, 0)
+        self.previews_layout.setSpacing(3)
         self.viewer_original = ImageViewer("Original")
-        self.viewer_live = ImageViewer("Live Sliders")
+        self.viewer_live = ImageViewer("Sliders")
         self.viewer_profile = ImageViewer("Profile")
-        for v in (self.viewer_original, self.viewer_live, self.viewer_profile):
-            previews_layout.addWidget(v, 1)
-        self.main_splitter.addWidget(previews_widget)
+        self.previews_layout.addWidget(self.viewer_original, 1)
+        self.previews_layout.addWidget(self.viewer_live, 1)
+        # viewer_profile added/removed dynamically via _update_preview_count()
+        self.viewer_profile.setVisible(False)
+        self.main_splitter.addWidget(self.previews_widget)
 
         # Plots
         self.plots_panel = PlotsPanel()
@@ -161,6 +171,24 @@ class MainWindow(QMainWindow):
             self._status_timer.start(5000)
         else:
             self._status_timer.stop()
+
+    def _on_third_profile_changed(self, *_args) -> None:
+        """Show/hide the 3rd preview and reprocess."""
+        has_third = self.third_profile_combo.currentText() != "None"
+        self._set_profile_viewer_visible(has_third)
+        self._schedule_preview()
+
+    def _set_profile_viewer_visible(self, visible: bool) -> None:
+        """Add or remove the 3rd viewer from the previews layout."""
+        if visible and self.viewer_profile.parent() is not self.previews_widget:
+            self.previews_layout.addWidget(self.viewer_profile, 1)
+            self.viewer_profile.setVisible(True)
+        elif not visible:
+            self.previews_layout.removeWidget(self.viewer_profile)
+            self.viewer_profile.setParent(None)
+            self.viewer_profile.setVisible(False)
+            self.viewer_profile.set_array(None)
+            self.viewer_profile.set_title("Profile")
 
     # ─── Popup dialogs ────────────────────────────────────────────────────────
 
