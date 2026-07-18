@@ -16,8 +16,9 @@ QMainWindow, QDialog {
 QGroupBox {
     border: none;
     border-radius: 0px;
-    margin-top: 11px;
+    margin-top: 13px;
     padding: 4px 4px 4px 4px;
+    font-size: 12px;
     font-weight: 600;
     color: #b0b0b0;
 }

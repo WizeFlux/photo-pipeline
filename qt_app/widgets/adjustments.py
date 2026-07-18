@@ -128,7 +128,7 @@ def _build_slider_group(title: str, specs: list[tuple], panel) -> QGroupBox:
 
 def _build_lut_group(panel) -> QGroupBox:
     """Build the LUT group: file dropdown + intensity slider."""
-    group = QGroupBox("🎭 LUT")
+    group = QGroupBox("LUT")
     layout = QVBoxLayout(group)
     layout.setContentsMargins(6, 10, 6, 6)
     layout.setSpacing(2)
@@ -169,10 +169,10 @@ class AdjustmentsPanel(QWidget):
         layout = QHBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(4)
-        layout.addWidget(_build_slider_group("☀️ Exposure", _EXPOSURE_SPECS, self), 1)
-        layout.addWidget(_build_slider_group("📊 Contrast", _CONTRAST_SPECS, self), 1)
-        layout.addWidget(_build_slider_group("🌡️ WB", _WB_SPECS, self), 1)
-        layout.addWidget(_build_slider_group("🎨 Sat", _SAT_SPECS, self), 1)
+        layout.addWidget(_build_slider_group("Exposure", _EXPOSURE_SPECS, self), 1)
+        layout.addWidget(_build_slider_group("Contrast", _CONTRAST_SPECS, self), 1)
+        layout.addWidget(_build_slider_group("WB", _WB_SPECS, self), 1)
+        layout.addWidget(_build_slider_group("Saturation", _SAT_SPECS, self), 1)
         layout.addWidget(_build_lut_group(self), 1)
 
     def _on_param_changed(self, *_args) -> None:
