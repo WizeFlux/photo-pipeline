@@ -22,7 +22,7 @@ from qt_app.state import load_profile_params, params_from_values
 # ─── Preview cache ────────────────────────────────────────────────────────────
 
 _PREVIEW_CACHE_DIR = Path.home() / ".cache" / "photo-pipeline" / "previews"
-_PREVIEW_MAX_W = 800
+_PREVIEW_MAX_W = 1200
 _PREVIEW_QUALITY = 95
 
 
