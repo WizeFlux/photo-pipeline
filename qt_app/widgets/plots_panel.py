@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 import numpy as np
+from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
-    QComboBox, QGroupBox, QHBoxLayout, QLabel, QVBoxLayout, QWidget,
+    QComboBox, QGroupBox, QHBoxLayout, QLabel, QSplitter, QVBoxLayout, QWidget,
 )
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg
 from matplotlib.figure import Figure
@@ -70,11 +71,7 @@ class PlotsPanel(QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(4)
 
-        plots_group = QGroupBox("📈 Plots")
-        plots_layout = QVBoxLayout(plots_group)
-        plots_layout.setContentsMargins(4, 8, 4, 4)
-        plots_layout.setSpacing(4)
-
+        # Selector row (no group box / title)
         selector_row = QHBoxLayout()
         selector_row.setSpacing(8)
         selector_row.addWidget(QLabel("Left:"))
@@ -91,17 +88,19 @@ class PlotsPanel(QWidget):
         self.selector_right.setCurrentText("Tone Curve")
         self.selector_right.currentTextChanged.connect(lambda _: self._redraw_plots())
         selector_row.addWidget(self.selector_right, 1)
-        plots_layout.addLayout(selector_row)
+        layout.addLayout(selector_row)
 
-        canvases_row = QHBoxLayout()
-        canvases_row.setSpacing(4)
+        # Horizontal splitter — drag to resize left/right plots
+        self.plot_splitter = QSplitter(Qt.Horizontal)
+        self.plot_splitter.setHandleWidth(8)
         self.canvas_left = _PlotCanvas(min_height=140)
         self.canvas_right = _PlotCanvas(min_height=140)
-        canvases_row.addWidget(self.canvas_left, 1)
-        canvases_row.addWidget(self.canvas_right, 1)
-        plots_layout.addLayout(canvases_row, 1)
-
-        layout.addWidget(plots_group, 1)
+        self.plot_splitter.addWidget(self.canvas_left)
+        self.plot_splitter.addWidget(self.canvas_right)
+        self.plot_splitter.setStretchFactor(0, 1)
+        self.plot_splitter.setStretchFactor(1, 1)
+        self.plot_splitter.setSizes([400, 400])
+        layout.addWidget(self.plot_splitter, 1)
 
     def _redraw_plots(self) -> None:
         if self._data is None:
