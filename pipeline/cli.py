@@ -84,8 +84,11 @@ def process(
     print(f"Processing: {input_dir} → {output_dir}")
     if profile:
         print(f"Profile: {profile}")
+    else:
+        print("Profile: default (no profile)")
     if overrides:
         print(f"Overrides: {overrides}")
+    print()
 
     results = pipe.process_directory(input_dir, output_dir)
 
@@ -96,14 +99,14 @@ def process(
 @click.argument("input_file", type=click.Path(exists=True))
 @click.option("-o", "--output", "output", default=None, help="Output path for preview")
 @click.option("-p", "--profile", "profile", default=None, help="YAML profile path")
-@click.option("--exposure", default=None, type=float)
-@click.option("--contrast", default=None, type=int)
-@click.option("--temperature", default=None, type=int)
-@click.option("--tint", default=None, type=int)
-@click.option("--saturation", default=None, type=int)
-@click.option("--lut", "lut_path", default=None)
-@click.option("--aspect", default=None)
-@click.option("--width", default=None, type=int)
+@click.option("--exposure", default=None, type=float, help="Override exposure EV (-3 to +3)")
+@click.option("--contrast", default=None, type=int, help="Override contrast amount (-100 to 100)")
+@click.option("--temperature", default=None, type=int, help="Override WB temperature (-100 to 100)")
+@click.option("--tint", default=None, type=int, help="Override WB tint (-100 to 100)")
+@click.option("--saturation", default=None, type=int, help="Override saturation (-100 to 100)")
+@click.option("--lut", "lut_path", default=None, help="Override LUT path (.cube file)")
+@click.option("--aspect", default=None, help="Override crop aspect ratio (e.g. 4:3, 16:9, 1:1)")
+@click.option("--width", default=None, type=int, help="Override output width in pixels")
 def preview(input_file, output, profile, **kwargs):
     """Generate before/after preview for a single image."""
     overrides = {}
@@ -157,7 +160,8 @@ def analyze(input_dir):
     ])
 
     if not files:
-        print(f"No images in {input_dir}")
+        print(f"No images found in {input_dir}")
+        print(f"  Supported formats: .tiff, .tif, .jpg, .jpeg, .png, .webp")
         return
 
     print(f"{'File':<50} {'Size':>10} {'WxH':>15} {'Brightness':>12} {'R/B':>6}")

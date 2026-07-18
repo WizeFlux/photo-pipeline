@@ -94,6 +94,7 @@ def generate_grid(
     ])
 
     if not files:
+        print(f"No images found in {input_dir}")
         return
 
     thumbs = []

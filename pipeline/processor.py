@@ -321,10 +321,13 @@ class Pipeline:
 
         if not files:
             print(f"No images found in {input_dir}")
+            print(f"  Supported formats: {', '.join(extensions)}")
             return []
 
         results = []
         total = len(files)
+        print(f"Processing {total} image(s) from {input_dir} → {output_dir}")
+        print(f"Profile: {getattr(self, '_profile_name', 'default (no profile)')}")
 
         for i, f in enumerate(files):
             print(f"  [{i+1}/{total}] {f.name}...", end=" ", flush=True)
@@ -335,8 +338,13 @@ class Pipeline:
                     print(f"✅ {size_kb}KB")
                     results.append(out)
                 else:
-                    print("❌")
+                    print("❌ failed (no output)")
             except Exception as e:
                 print(f"❌ {e}")
 
+        failed = total - len(results)
+        print(f"\nDone: {len(results)}/{total} processed")
+        if failed:
+            print(f"⚠️  {failed} image(s) failed")
+        print(f"Output: {output_dir}")
         return results

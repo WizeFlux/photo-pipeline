@@ -1,5 +1,5 @@
 #!/bin/bash
-# Photo Pipeline — setup script for macOS (Apple Silicon)
+# Photo Pipeline — setup script
 # Creates venv inside project dir, installs all deps
 set -e
 
@@ -26,5 +26,12 @@ echo "✅ Setup complete!"
 echo ""
 echo "Usage:"
 echo "  source .venv/bin/activate"
+echo ""
+echo "  # Desktop GUI (recommended)"
+echo "  python -m qt_app.main"
+echo ""
+echo "  # CLI — batch process a folder"
 echo "  python -m pipeline process <input_dir> -o <output_dir> -p profiles/default.yaml"
+echo ""
+echo "  # CLI — preview a single image (before/after)"
 echo "  python -m pipeline preview <input_file> -p profiles/default.yaml"

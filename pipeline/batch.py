@@ -139,6 +139,7 @@ def batch_process_parallel(
 
     if not files:
         print(f"No images found in {input_dir}")
+        print(f"  Supported formats: {', '.join(extensions)}")
         return []
 
     if max_workers is None:
@@ -154,8 +155,10 @@ def batch_process_parallel(
     params_with_output["output"]["format"] = params.get("output_format", "jpeg")
     params_with_output["output"]["quality"] = params.get("output_quality", 90)
 
-    print(f"Processing {total} images with {max_workers} workers "
+    print(f"Processing {total} image(s) with {max_workers} workers "
           f"({'GPU' if use_gpu else 'CPU'})...")
+    print(f"  Input:  {input_dir}")
+    print(f"  Output: {output_dir}")
 
     with ProcessPoolExecutor(max_workers=max_workers) as executor:
         futures = {
@@ -186,5 +189,9 @@ def batch_process_parallel(
                 print(f"  [{i+1}/{total}] {status}")
 
     success = sum(1 for _, o, e in results if o and not e)
-    print(f"\nDone: {success}/{total} images processed → {output_dir}")
+    failed = total - success
+    print(f"\nDone: {success}/{total} images processed")
+    if failed:
+        print(f"⚠️  {failed} image(s) failed")
+    print(f"Output: {output_dir}")
     return results
