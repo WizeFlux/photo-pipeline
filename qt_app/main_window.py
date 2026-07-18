@@ -119,7 +119,7 @@ class MainWindow(QMainWindow):
         separator = QFrame()
         separator.setFrameShape(QFrame.HLine)
         separator.setFixedHeight(2)
-        separator.setStyleSheet("background-color: #00d4aa; border: none;")
+        separator.setStyleSheet("background-color: #3a3a3a; border: none;")
         root.addWidget(separator)
         root.addSpacing(4)
 
