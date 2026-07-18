@@ -31,7 +31,7 @@ from qt_app.state import (
 )
 from qt_app.theme import apply_theme
 from qt_app.widgets.adjustments import AdjustmentsPanel
-from qt_app.widgets.dialogs import BatchDialog, ProfilesDialog
+from qt_app.widgets.dialogs import BatchDialog, FormatDialog, ProfilesDialog
 from qt_app.widgets.image_viewer import ImageViewer
 from qt_app.widgets.plots_panel import PlotsPanel
 from qt_app.workers import BatchWorker, PreviewWorker
@@ -62,6 +62,10 @@ class MainWindow(QMainWindow):
         # Popup dialogs (created lazily)
         self._profiles_dialog: ProfilesDialog | None = None
         self._batch_dialog: BatchDialog | None = None
+        self._format_dialog: FormatDialog | None = None
+        # Output settings (shared by Save and Batch)
+        self._format: str = "JPEG"
+        self._quality: int = 90
 
         self._build_ui()
         self._connect_signals()
@@ -86,20 +90,9 @@ class MainWindow(QMainWindow):
         save_btn.clicked.connect(self._on_save)
         toolbar.addWidget(save_btn)
 
-        # Format selector — shared by Save and Batch
-        toolbar.addSpacing(8)
-        toolbar.addWidget(QLabel("Format:"))
-        self.format_combo = QComboBox()
-        self.format_combo.addItems(["JPEG", "WebP", "TIFF", "PNG"])
-        self.format_combo.setCurrentText("JPEG")
-        self.format_combo.setMinimumWidth(70)
-        toolbar.addWidget(self.format_combo)
-        toolbar.addWidget(QLabel("Q:"))
-        self.quality_spin = QSpinBox()
-        self.quality_spin.setRange(1, 100)
-        self.quality_spin.setValue(90)
-        self.quality_spin.setFixedWidth(44)
-        toolbar.addWidget(self.quality_spin)
+        format_btn = QPushButton("🎨 Format")
+        format_btn.clicked.connect(self._show_format)
+        toolbar.addWidget(format_btn)
 
         profiles_btn = QPushButton("📋 Profiles")
         profiles_btn.clicked.connect(self._show_profiles)
@@ -110,7 +103,7 @@ class MainWindow(QMainWindow):
         toolbar.addWidget(batch_btn)
 
         toolbar.addSpacing(8)
-        lbl = QLabel("3rd:")
+        lbl = QLabel("Preview profile:")
         lbl.setObjectName("value-label")
         toolbar.addWidget(lbl)
         self.third_profile_combo = QComboBox()
@@ -225,6 +218,19 @@ class MainWindow(QMainWindow):
         self._batch_dialog.show()
         self._batch_dialog.raise_()
 
+    def _show_format(self) -> None:
+        if self._format_dialog is None:
+            self._format_dialog = FormatDialog(self)
+            self._format_dialog.formatChanged.connect(self._on_format_changed)
+        self._format_dialog.set_format(self._format, self._quality)
+        self._format_dialog.show()
+        self._format_dialog.raise_()
+
+    def _on_format_changed(self, fmt: str, quality: int) -> None:
+        self._format = fmt
+        self._quality = quality
+        self._set_status(f"🎨 {fmt} q{quality}")
+
     # ─── Profile combo helpers ────────────────────────────────────────────────
 
     def _refresh_profile_combo(self, combo: QComboBox) -> None:
@@ -262,8 +268,8 @@ class MainWindow(QMainWindow):
             self._set_status("Nothing to save — open an image first.")
             return
 
-        fmt = self.format_combo.currentText()
-        quality = self.quality_spin.value()
+        fmt = self._format
+        quality = self._quality
         ext = {"JPEG": "jpg", "WebP": "webp", "TIFF": "tiff", "PNG": "png"}[fmt]
 
         save_path, _ = QFileDialog.getSaveFileName(
@@ -315,9 +321,8 @@ class MainWindow(QMainWindow):
             return
         params = params_from_values(self.adjustments.get_params())
         # Inject toolbar format/quality so batch uses the same settings as Save
-        fmt = self.format_combo.currentText().lower()
-        params["output_format"] = fmt
-        params["output_quality"] = self.quality_spin.value()
+        params["output_format"] = self._format.lower()
+        params["output_quality"] = self._quality
         if self._batch_dialog:
             self._batch_dialog.set_status("Processing…")
         self._batch_worker = BatchWorker(input_dir, output_dir, params, use_gpu)

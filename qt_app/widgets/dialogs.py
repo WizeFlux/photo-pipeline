@@ -1,4 +1,4 @@
-"""Popup dialogs for Profiles and Batch — launched from the toolbar.
+"""Popup dialogs for Profiles, Batch, and Format — launched from the toolbar.
 
 These dialogs use a normal (non-reduced) font size, overriding the app's
 global 10px compact stylesheet.
@@ -9,7 +9,8 @@ from __future__ import annotations
 from PySide6.QtCore import Signal
 from PySide6.QtGui import QFont
 from PySide6.QtWidgets import (
-    QDialog, QVBoxLayout, QWidget,
+    QComboBox, QDialog, QDialogButtonBox, QFormLayout, QSpinBox, QVBoxLayout,
+    QWidget,
 )
 
 from qt_app.widgets.batch import BatchPanel
@@ -77,6 +78,49 @@ class ProfilesDialog(QDialog):
 
     def refresh(self) -> None:
         self.panel.refresh()
+
+
+class FormatDialog(QDialog):
+    """Popup for choosing output format and quality."""
+
+    formatChanged = Signal(str, int)  # format, quality
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle("🎨 Format")
+        self.setModal(False)
+        self.setMinimumWidth(260)
+        _apply_dialog_font(self)
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(12, 12, 12, 12)
+        form = QFormLayout()
+        self.format_combo = QComboBox()
+        self.format_combo.addItems(["JPEG", "WebP", "TIFF", "PNG"])
+        self.format_combo.setCurrentText("JPEG")
+        form.addRow("Format:", self.format_combo)
+        self.quality_spin = QSpinBox()
+        self.quality_spin.setRange(1, 100)
+        self.quality_spin.setValue(90)
+        form.addRow("Quality:", self.quality_spin)
+        layout.addLayout(form)
+
+        buttons = QDialogButtonBox(QDialogButtonBox.Ok)
+        buttons.accepted.connect(self._on_accept)
+        layout.addWidget(buttons)
+
+    def _on_accept(self) -> None:
+        self.formatChanged.emit(self.format_combo.currentText(),
+                                self.quality_spin.value())
+        self.accept()
+
+    def get_format(self) -> tuple[str, int]:
+        return self.format_combo.currentText(), self.quality_spin.value()
+
+    def set_format(self, fmt: str, quality: int) -> None:
+        idx = self.format_combo.findText(fmt)
+        if idx >= 0:
+            self.format_combo.setCurrentIndex(idx)
+        self.quality_spin.setValue(quality)
 
 
 class BatchDialog(QDialog):
