@@ -273,7 +273,7 @@ if accordion_header("Profiles", "profiles", "📋"):
 if profiles_list:
     third_profile = sb.selectbox(
         "🖼️ 3rd Preview", profiles_list,
-        key="third_profile_select", index=0, label_visibility="label",
+        key="third_profile_select", index=0,
     )
 else:
     third_profile = None
