@@ -152,9 +152,12 @@ class MainWindow(QMainWindow):
         self.viewer_profile = ImageViewer("Profile")
         self.previews_layout.addWidget(self.viewer_original, 1)
         self.previews_layout.addWidget(self.viewer_live, 1)
-        # viewer_profile added/removed dynamically via _update_preview_count()
+        # viewer_profile added/removed dynamically via _set_profile_viewer_visible()
         self.viewer_profile.setVisible(False)
         self.main_splitter.addWidget(self.previews_widget)
+
+        # Synchronize zoom & pan across all viewers
+        self._sync_viewers()
 
         # Plots
         self.plots_panel = PlotsPanel()
@@ -199,6 +202,25 @@ class MainWindow(QMainWindow):
             self.viewer_profile.setVisible(False)
             self.viewer_profile.set_array(None)
             self.viewer_profile.set_title("Profile")
+
+    def _sync_viewers(self) -> None:
+        """Connect zoom/pan signals so all viewers stay in sync."""
+        viewers = [self.viewer_original, self.viewer_live, self.viewer_profile]
+        for src in viewers:
+            for dst in viewers:
+                if src is dst:
+                    continue
+                # Disconnect first to avoid duplicates when called again
+                try:
+                    src.zoomChanged.disconnect(dst.set_zoom)
+                except (TypeError, RuntimeError):
+                    pass
+                try:
+                    src.panChanged.disconnect(dst.set_pan)
+                except (TypeError, RuntimeError):
+                    pass
+                src.zoomChanged.connect(dst.set_zoom)
+                src.panChanged.connect(dst.set_pan)
 
     # ─── Popup dialogs ────────────────────────────────────────────────────────
 
