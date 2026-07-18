@@ -9,3 +9,5 @@ watchdog>=4.0.0
 torch>=2.1.0
 torchvision>=0.16.0
 gradio>=5.0.0
+PySide6>=6.6.0
+matplotlib>=3.8.0
