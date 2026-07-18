@@ -275,9 +275,12 @@ if accordion_header("Profiles", "profiles", "📋"):
             st.rerun()
 
         sb.markdown("**3rd Preview**")
+        # Restore saved selection index so reopening section doesn't reset it
+        saved = st.session_state.get("third_profile_value", None)
+        saved_idx = profiles_list.index(saved) if saved and saved in profiles_list else 0
         third_profile = sb.selectbox(
             "Profile for 3rd preview", profiles_list,
-            key="third_profile_select", index=0, label_visibility="collapsed",
+            key="third_profile_select", index=saved_idx, label_visibility="collapsed",
             on_change=save_third_profile,
         )
         st.session_state["third_profile_value"] = third_profile
