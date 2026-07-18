@@ -32,7 +32,7 @@ from qt_app.state import (
 )
 from qt_app.theme import apply_theme
 from qt_app.widgets.adjustments import AdjustmentsPanel
-from qt_app.widgets.dialogs import BatchDialog, FormatDialog, ProfilesDialog
+from qt_app.widgets.dialogs import BatchDialog, ProfilesDialog, SettingsDialog
 from qt_app.widgets.image_viewer import ImageViewer
 from qt_app.widgets.plots_panel import PlotsPanel
 from qt_app.workers import BatchWorker, PreviewWorker
@@ -63,10 +63,14 @@ class MainWindow(QMainWindow):
         # Popup dialogs (created lazily)
         self._profiles_dialog: ProfilesDialog | None = None
         self._batch_dialog: BatchDialog | None = None
-        self._format_dialog: FormatDialog | None = None
+        self._settings_dialog: SettingsDialog | None = None
         # Output settings (shared by Save and Batch)
         self._format: str = "JPEG"
         self._quality: int = 90
+        # Preview cache quality (used by workers)
+        self._cache_quality: int = 95
+        # Plots enabled toggle
+        self._plots_enabled: bool = True
 
         self._build_ui()
         self._connect_signals()
@@ -91,9 +95,9 @@ class MainWindow(QMainWindow):
         save_btn.clicked.connect(self._on_save)
         toolbar.addWidget(save_btn)
 
-        format_btn = QPushButton("🎨 Format")
-        format_btn.clicked.connect(self._show_format)
-        toolbar.addWidget(format_btn)
+        settings_btn = QPushButton("⚙ Settings")
+        settings_btn.clicked.connect(self._show_settings)
+        toolbar.addWidget(settings_btn)
 
         profiles_btn = QPushButton("📋 Profiles")
         profiles_btn.clicked.connect(self._show_profiles)
@@ -236,18 +240,48 @@ class MainWindow(QMainWindow):
         self._batch_dialog.show()
         self._batch_dialog.raise_()
 
-    def _show_format(self) -> None:
-        if self._format_dialog is None:
-            self._format_dialog = FormatDialog(self)
-            self._format_dialog.formatChanged.connect(self._on_format_changed)
-        self._format_dialog.set_format(self._format, self._quality)
-        self._format_dialog.show()
-        self._format_dialog.raise_()
+    def _show_settings(self) -> None:
+        if self._settings_dialog is None:
+            self._settings_dialog = SettingsDialog(self)
+            self._settings_dialog.settingsChanged.connect(self._on_settings_changed)
+        self._settings_dialog.set_settings(
+            self._format, self._quality, self._cache_quality, self._plots_enabled
+        )
+        self._settings_dialog.show()
+        self._settings_dialog.raise_()
 
-    def _on_format_changed(self, fmt: str, quality: int) -> None:
+    def _on_settings_changed(self, fmt: str, quality: int, cache_quality: int,
+                             plots_enabled: bool) -> None:
         self._format = fmt
         self._quality = quality
-        self._set_status(f"🎨 {fmt} q{quality}")
+        # Cache quality changed → clear old cache so new quality takes effect
+        if cache_quality != self._cache_quality:
+            self._cache_quality = cache_quality
+            self._clear_preview_cache()
+            from qt_app.workers import set_preview_quality
+            set_preview_quality(cache_quality)
+        # Plots toggle
+        plots_toggled = plots_enabled != self._plots_enabled
+        self._plots_enabled = plots_enabled
+        self.plots_panel.setVisible(plots_enabled)
+        if plots_toggled and plots_enabled and self._live_arr is not None:
+            # Re-enable plots → redraw with current data
+            prof_name = self.third_profile_combo.currentText()
+            if prof_name == "None":
+                prof_name = None
+            params = params_from_values(self.adjustments.get_params())
+            self.plots_panel.update_all(
+                self._orig_arr, self._live_arr, self._profile_arr, prof_name, params
+            )
+        self._set_status(f"⚙ {fmt} q{quality} | cache {cache_quality}% | plots {'on' if plots_enabled else 'off'}")
+
+    def _clear_preview_cache(self) -> None:
+        """Clear the preview cache directory."""
+        import shutil
+        from pathlib import Path
+        cache_dir = Path.home() / ".cache" / "photo-pipeline" / "previews"
+        if cache_dir.exists():
+            shutil.rmtree(cache_dir, ignore_errors=True)
 
     # ─── Profile combo helpers ────────────────────────────────────────────────
 

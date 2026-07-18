@@ -9,8 +9,8 @@ from __future__ import annotations
 from PySide6.QtCore import Signal
 from PySide6.QtGui import QFont
 from PySide6.QtWidgets import (
-    QComboBox, QDialog, QDialogButtonBox, QFormLayout, QSpinBox, QVBoxLayout,
-    QWidget,
+    QCheckBox, QComboBox, QDialog, QDialogButtonBox, QFormLayout, QGroupBox,
+    QSpinBox, QVBoxLayout, QWidget,
 )
 
 from qt_app.widgets.batch import BatchPanel
@@ -80,47 +80,79 @@ class ProfilesDialog(QDialog):
         self.panel.refresh()
 
 
-class FormatDialog(QDialog):
-    """Popup for choosing output format and quality."""
+class SettingsDialog(QDialog):
+    """Popup for output format, quality, cache quality, and plot toggle."""
 
-    formatChanged = Signal(str, int)  # format, quality
+    settingsChanged = Signal(str, int, int, bool)  # format, quality, cache_quality, plots_enabled
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("🎨 Format")
+        self.setWindowTitle("⚙ Settings")
         self.setModal(False)
-        self.setMinimumWidth(260)
+        self.setMinimumWidth(320)
         _apply_dialog_font(self)
         layout = QVBoxLayout(self)
         layout.setContentsMargins(12, 12, 12, 12)
-        form = QFormLayout()
+        layout.setSpacing(10)
+
+        # ── Output section ──
+        out_group = QGroupBox("Output")
+        out_form = QFormLayout(out_group)
         self.format_combo = QComboBox()
         self.format_combo.addItems(["JPEG", "WebP", "TIFF", "PNG"])
         self.format_combo.setCurrentText("JPEG")
-        form.addRow("Format:", self.format_combo)
+        out_form.addRow("Format:", self.format_combo)
         self.quality_spin = QSpinBox()
         self.quality_spin.setRange(1, 100)
         self.quality_spin.setValue(90)
-        form.addRow("Quality:", self.quality_spin)
-        layout.addLayout(form)
+        out_form.addRow("Quality:", self.quality_spin)
+        layout.addWidget(out_group)
+
+        # ── Preview cache section ──
+        cache_group = QGroupBox("Preview cache")
+        cache_form = QFormLayout(cache_group)
+        self.cache_quality_spin = QSpinBox()
+        self.cache_quality_spin.setRange(50, 100)
+        self.cache_quality_spin.setValue(95)
+        self.cache_quality_spin.setSuffix(" %")
+        cache_form.addRow("Cache quality:", self.cache_quality_spin)
+        layout.addWidget(cache_group)
+
+        # ── Performance section ──
+        perf_group = QGroupBox("Performance")
+        perf_layout = QVBoxLayout(perf_group)
+        self.plots_checkbox = QCheckBox("Enable plots (histograms, tone curve)")
+        self.plots_checkbox.setChecked(True)
+        perf_layout.addWidget(self.plots_checkbox)
+        layout.addWidget(perf_group)
 
         buttons = QDialogButtonBox(QDialogButtonBox.Ok)
         buttons.accepted.connect(self._on_accept)
         layout.addWidget(buttons)
 
     def _on_accept(self) -> None:
-        self.formatChanged.emit(self.format_combo.currentText(),
-                                self.quality_spin.value())
+        self.settingsChanged.emit(
+            self.format_combo.currentText(),
+            self.quality_spin.value(),
+            self.cache_quality_spin.value(),
+            self.plots_checkbox.isChecked(),
+        )
         self.accept()
 
-    def get_format(self) -> tuple[str, int]:
-        return self.format_combo.currentText(), self.quality_spin.value()
+    def get_settings(self) -> tuple[str, int, int, bool]:
+        return (self.format_combo.currentText(),
+                self.quality_spin.value(),
+                self.cache_quality_spin.value(),
+                self.plots_checkbox.isChecked())
 
-    def set_format(self, fmt: str, quality: int) -> None:
+    def set_settings(self, fmt: str, quality: int, cache_quality: int,
+                     plots_enabled: bool) -> None:
         idx = self.format_combo.findText(fmt)
         if idx >= 0:
             self.format_combo.setCurrentIndex(idx)
         self.quality_spin.setValue(quality)
+        self.cache_quality_spin.setValue(cache_quality)
+        self.plots_checkbox.setChecked(plots_enabled)
 
 
 class BatchDialog(QDialog):

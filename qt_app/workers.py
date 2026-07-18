@@ -23,7 +23,13 @@ from qt_app.state import load_profile_params, params_from_values
 
 _PREVIEW_CACHE_DIR = Path.home() / ".cache" / "photo-pipeline" / "previews"
 _PREVIEW_MAX_W = 1200
-_PREVIEW_QUALITY = 95
+_PREVIEW_QUALITY = 95  # default; overridden by set_preview_quality()
+
+
+def set_preview_quality(q: int) -> None:
+    """Set the JPEG quality for cache writes (called from Settings)."""
+    global _PREVIEW_QUALITY
+    _PREVIEW_QUALITY = max(50, min(q, 100))
 
 
 def _preview_cache_key(image_path: str) -> str:
