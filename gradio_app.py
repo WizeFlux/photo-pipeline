@@ -167,7 +167,8 @@ def do_save_profile(name, ev, gamma, highlights, shadows,
                     temperature, tint, saturation, vibrance,
                     lut_path, lut_intensity):
     if not name.strip():
-        return "Enter a profile name"
+        gr.Warning("Enter a profile name")
+        return gr.update(), gr.update()
     params = params_from_sliders(
         ev, gamma, highlights, shadows,
         contrast_amount, s_curve, black_point, white_point,
@@ -175,19 +176,22 @@ def do_save_profile(name, ev, gamma, highlights, shadows,
         lut_path, lut_intensity,
     )
     path = save_profile(name.strip(), params)
+    gr.Info(f"Saved: {Path(path).name}")
     # Refresh dropdowns
     profiles = list_profiles()
-    return f"Saved: {Path(path).name}", gr.update(choices=profiles), gr.update(choices=["None"] + profiles)
+    return gr.update(choices=profiles), gr.update(choices=["None"] + profiles)
 
 
 def do_delete_profile(name):
     if not name or name == "None":
-        return "Select a profile to delete", gr.update(), gr.update()
+        gr.Warning("Select a profile to delete")
+        return gr.update(), gr.update()
     path = PROFILES_DIR / name
     if path.exists():
         path.unlink()
+    gr.Info(f"Deleted: {name}")
     profiles = list_profiles()
-    return f"Deleted: {name}", gr.update(choices=profiles), gr.update(choices=["None"] + profiles)
+    return gr.update(choices=profiles), gr.update(choices=["None"] + profiles)
 
 
 # ─── Batch processing ────────────────────────────────────────────────────────
@@ -339,8 +343,6 @@ def build_ui():
             delete_profile_dd = gr.Dropdown(choices=profiles, label="Delete")
             delete_btn = gr.Button("🗑️ Delete", size="sm")
 
-        profile_status = gr.Textbox(label="Status", interactive=False)
-
         # ─── Statistics ──────────────────────────────────────────────────────
         gr.Markdown("### 📊 Statistics")
         stats_table = gr.Dataframe(
@@ -414,13 +416,13 @@ def build_ui():
         save_btn.click(
             do_save_profile,
             inputs=[save_name] + all_sliders,
-            outputs=[profile_status, load_profile_dd, third_profile],
+            outputs=[load_profile_dd, third_profile],
         )
 
         delete_btn.click(
             do_delete_profile,
             inputs=[delete_profile_dd],
-            outputs=[profile_status, delete_profile_dd, third_profile],
+            outputs=[delete_profile_dd, third_profile],
         )
 
         # Batch
