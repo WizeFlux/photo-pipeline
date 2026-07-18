@@ -58,10 +58,11 @@ def _style_axes(ax, title: str = "") -> None:
     for spine in ax.spines.values():
         spine.set_color(_GRID)
         spine.set_linewidth(0.5)
-    # Denser grid: major + minor lines
+    # Denser grid: major + minor lines, both above and below the plot
+    ax.set_axisbelow(False)  # draw grid on top of fills/curves
     ax.minorticks_on()
-    ax.grid(True, which="major", color=_GRID, linewidth=0.5, alpha=0.5)
-    ax.grid(True, which="minor", color=_GRID_MINOR, linewidth=0.3, alpha=0.4)
+    ax.grid(True, which="major", color=_GRID, linewidth=0.5, alpha=0.5, zorder=5)
+    ax.grid(True, which="minor", color=_GRID_MINOR, linewidth=0.3, alpha=0.4, zorder=5)
     ax.tick_params(which="minor", length=0)
 
 
