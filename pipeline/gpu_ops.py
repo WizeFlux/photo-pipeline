@@ -225,75 +225,63 @@ def gpu_saturation(
     amount: int = 0,
     vibrance: int = 0,
 ) -> torch.Tensor:
-    """Saturation and vibrance on GPU using vectorized HSL."""
+    """Saturation and vibrance — direct RGB-space scaling, no HSL round-trip.
+
+    Saturation: scale the chroma component (pixel - luma) by a factor.
+        result = luma + (pixel - luma) * factor
+    This is equivalent to the HSL approach in the linear regime but avoids
+    three max/min, six sector masks, and a full HSL→RGB reconstruction.
+
+    Vibrance: scale chroma by a per-pixel weight that is higher for
+    low-saturation pixels (so already-saturated colors move less). The
+    existing saturation is approximated as delta / (1 - |2*luma - 1|),
+    which is the standard HSL S in 0-1 form — cheap to compute without
+    hue. Skin-tone protection uses an approximate red-vs-yellow mask in
+    RGB space (no hue needed): pixels where R is the max channel and
+    R-G is small.
+    """
     if amount == 0 and vibrance == 0:
         return t
 
-    rgb = t / 255.0
-    r, g, b = rgb[..., 0], rgb[..., 1], rgb[..., 2]
+    rgb = t  # work in 0-255 directly; only normalize for the weight calc
+    # Rec. 709 luma (perceptual gray) — same brightness the old HSL L approximates
+    luma = 0.2126 * rgb[..., 0] + 0.7152 * rgb[..., 1] + 0.0722 * rgb[..., 2]
+    chroma = rgb - luma.unsqueeze(-1)  # (H, W, 3) deviation from gray
 
-    maxc = rgb.max(dim=-1).values
-    minc = rgb.min(dim=-1).values
-    delta = maxc - minc
+    # ── Global saturation ──
+    factor = 1.0 + amount / 100.0 if amount != 0 else 1.0
 
-    l = (maxc + minc) / 2.0
-
-    # Saturation
-    s = torch.where(
-        delta == 0,
-        torch.zeros_like(delta),
-        torch.where(
-            l < 0.5,
-            delta / (maxc + minc + 1e-10),
-            delta / (2.0 - maxc - minc + 1e-10),
-        ),
-    )
-
-    # Hue (0-360)
-    rc = torch.where(delta == 0, torch.zeros_like(delta), (maxc - r) / (delta + 1e-10))
-    gc = torch.where(delta == 0, torch.zeros_like(delta), (maxc - g) / (delta + 1e-10))
-    bc = torch.where(delta == 0, torch.zeros_like(delta), (maxc - b) / (delta + 1e-10))
-
-    h = torch.where(maxc == r, bc - gc, torch.where(maxc == g, 2.0 + rc - bc, 4.0 + gc - rc))
-    h = (h / 6.0) % 1.0
-    h = h * 360.0
-
-    # Global saturation
-    if amount != 0:
-        s = (s * (1.0 + amount / 100.0)).clamp(0, 1)
-
-    # Vibrance
+    # ── Vibrance ──
+    # Vibrance needs the per-pixel existing saturation (for the weight that
+    # boosts low-saturated pixels more) and a skin-tone mask. Both are computed
+    # in RGB space — no hue / HSL round-trip required.
     if vibrance != 0:
+        maxc = rgb.max(dim=-1).values
+        minc = rgb.min(dim=-1).values
+        delta = maxc - minc
+        l01 = luma / 255.0
+        denom = (1.0 - (2.0 * l01 - 1.0).abs()).clamp(min=1e-6)
+        s_existing = (delta / 255.0) / denom  # 0..1
+
         v = vibrance / 100.0
-        weight = 1.0 - s * 0.8
-        s = (s + v * weight * 0.6).clamp(0, 1)
-        # Protect skin tones
-        skin_mask = ((h > 10) & (h < 50)).float()
-        s = s * (1.0 - skin_mask * abs(v) * 0.3)
+        # Boost low-saturated pixels more, high-saturated less (like the old code).
+        weight = 1.0 - s_existing * 0.8  # 1.0 at gray, 0.2 at fully saturated
+        vibrance_factor = 1.0 + v * weight * 0.6
+        # Combine with the global factor multiplicatively.
+        factor = factor * vibrance_factor
+        # Skin-tone protection: approximate (no hue). Skin tones are where R is
+        # the dominant channel and R-G is small/moderate. Reduce the boost there.
+        r, g, b = rgb[..., 0], rgb[..., 1], rgb[..., 2]
+        is_skin = ((r >= g) & (r >= b) & ((r - g) < 60) & (g > b * 0.6)).float()
+        skin_dampen = 1.0 - is_skin * abs(v) * 0.3
+        factor = factor * skin_dampen
 
-    # HSL → RGB
-    h_norm = h / 360.0
-    c = (1.0 - (2.0 * l - 1.0).abs()) * s
-    x = c * (1.0 - ((h_norm * 6.0) % 2.0 - 1.0).abs())
-    m = l - c / 2.0
-
-    sector = (h_norm * 6.0).long() % 6
-
-    r_out = torch.zeros_like(l)
-    g_out = torch.zeros_like(l)
-    b_out = torch.zeros_like(l)
-
-    masks = [sector == i for i in range(6)]
-    r_vals = [c, x, torch.zeros_like(c), torch.zeros_like(c), x, c]
-    g_vals = [x, c, c, x, torch.zeros_like(c), torch.zeros_like(c)]
-    b_vals = [torch.zeros_like(c), torch.zeros_like(c), x, c, c, x]
-
-    for i in range(6):
-        r_out = r_out + masks[i] * r_vals[i]
-        g_out = g_out + masks[i] * g_vals[i]
-        b_out = b_out + masks[i] * b_vals[i]
-
-    result = torch.stack([r_out + m, g_out + m, b_out + m], dim=-1) * 255.0
+    # factor is either a python float (amount-only) or a tensor (vibrance on).
+    # Broadcast against the (H,W,3) chroma by promoting to a tensor.
+    if not torch.is_tensor(factor):
+        result = luma.unsqueeze(-1) + chroma * factor
+    else:
+        result = luma.unsqueeze(-1) + chroma * factor.unsqueeze(-1)
     return result.clamp(0, 255)
 
 

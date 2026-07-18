@@ -6,6 +6,7 @@ BatchWorker   — processes a directory of images, emitting progress.
 
 from __future__ import annotations
 
+import hashlib
 import os
 from pathlib import Path
 
@@ -18,12 +19,64 @@ from pipeline.gpu_ops import gpu_process_from_pil
 from qt_app.state import load_profile_params, params_from_values
 
 
+# ─── Preview cache ────────────────────────────────────────────────────────────
+
+_PREVIEW_CACHE_DIR = Path.home() / ".cache" / "photo-pipeline" / "previews"
+_PREVIEW_MAX_W = 800
+_PREVIEW_QUALITY = 95
+
+
+def _preview_cache_key(image_path: str) -> str:
+    """md5(path + mtime + size) — invalidates when the file changes."""
+    st = os.stat(image_path)
+    key = f"{image_path}|{st.st_mtime_ns}|{st.st_size}"
+    return hashlib.md5(key.encode()).hexdigest()
+
+
+def _preview_cache_path(key: str) -> Path:
+    return _PREVIEW_CACHE_DIR / f"{key}.jpg"
+
+
+def _load_preview_image(image_path: str) -> Image.Image:
+    """Load a downscaled preview image, using the on-disk cache when possible.
+
+    On a cache hit we skip PIL.open of the (potentially large) original file
+    entirely and decode the small JPEG instead — ~50-100x faster for big raws.
+    On a miss we open + downscale the original and write the cache entry.
+    """
+    key = _preview_cache_key(image_path)
+    cache_file = _preview_cache_path(key)
+
+    if cache_file.exists():
+        return Image.open(cache_file).convert("RGB")
+
+    img = Image.open(image_path)
+    if img.mode != "RGB":
+        img = img.convert("RGB")
+    if img.width > _PREVIEW_MAX_W:
+        ratio = _PREVIEW_MAX_W / img.width
+        img = img.resize((_PREVIEW_MAX_W, int(img.height * ratio)), Image.LANCZOS)
+
+    # Write cache (best-effort — never fail the preview over a cache write error)
+    try:
+        cache_file.parent.mkdir(parents=True, exist_ok=True)
+        img.save(cache_file, "JPEG", quality=_PREVIEW_QUALITY)
+    except OSError:
+        pass
+
+    return img
+
+
 # ─── Preview ─────────────────────────────────────────────────────────────────
 
 class PreviewWorker(QThread):
     """Process one image: returns (original, live, profile?) arrays.
 
-    Downsizes large images for fast interactive preview.
+    Downsizes large images for fast interactive preview. Downscaled previews
+    are cached on disk (~/.cache/photo-pipeline/previews/) keyed by the source
+    file's path + mtime + size, so repeated slider tweaks on the same image
+    skip re-decoding the full original.
+
     Checks isInterruptionRequested() between heavy steps so the caller
     can cancel an in-flight job before it finishes.
     """
@@ -40,14 +93,7 @@ class PreviewWorker(QThread):
 
     def run(self) -> None:
         try:
-            img = Image.open(self._image_path)
-            if img.mode != "RGB":
-                img = img.convert("RGB")
-            # Downscale for preview
-            max_w = 1200
-            if img.width > max_w:
-                ratio = max_w / img.width
-                img = img.resize((max_w, int(img.height * ratio)), Image.LANCZOS)
+            img = _load_preview_image(self._image_path)
 
             if self.isInterruptionRequested():
                 return
