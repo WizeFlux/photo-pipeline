@@ -235,7 +235,7 @@ if profiles_list:
 sb.markdown("### 💾 Output")
 sb.selectbox("Format", ["jpeg", "webp", "avif", "tiff"],
              key="output_format", index=0, label_visibility="collapsed")
-sb.slider("Quality", 1, 100, 90, key="output_quality")
+sb.slider("Quality", min_value=1, max_value=100, key="output_quality")
 
 # Download (only if image uploaded)
 if st.session_state.uploaded_file:
@@ -410,31 +410,31 @@ with st.container():
 
     with adj_col1:
         st.markdown("#### ☀️ Exposure")
-        st.slider("EV", -3.0, 3.0, 0.0, 0.01, key="ev", format="%.2f")
-        st.slider("Gamma", 0.5, 2.5, 1.0, 0.01, key="gamma", format="%.2f")
-        st.slider("Highlights", -100, 100, 0, 1, key="highlights")
-        st.slider("Shadows", -100, 100, 0, 1, key="shadows")
+        st.slider("EV", min_value=-3.0, max_value=3.0, step=0.01, key="ev", format="%.2f")
+        st.slider("Gamma", min_value=0.5, max_value=2.5, step=0.01, key="gamma", format="%.2f")
+        st.slider("Highlights", min_value=-100, max_value=100, step=1, key="highlights")
+        st.slider("Shadows", min_value=-100, max_value=100, step=1, key="shadows")
 
     with adj_col2:
         st.markdown("#### 📊 Contrast")
-        st.slider("Amount", -100, 100, 0, 1, key="contrast_amount")
-        st.slider("S-Curve", 0, 100, 0, 1, key="s_curve")
-        st.slider("Black Point", 0, 50, 0, 1, key="black_point")
-        st.slider("White Point", 205, 255, 255, 1, key="white_point")
+        st.slider("Amount", min_value=-100, max_value=100, step=1, key="contrast_amount")
+        st.slider("S-Curve", min_value=0, max_value=100, step=1, key="s_curve")
+        st.slider("Black Point", min_value=0, max_value=50, step=1, key="black_point")
+        st.slider("White Point", min_value=205, max_value=255, step=1, key="white_point")
 
     with adj_col3:
         st.markdown("#### 🌡️ White Balance")
-        st.slider("Temperature", -100, 100, 0, 1, key="temperature")
-        st.slider("Tint", -100, 100, 0, 1, key="tint")
+        st.slider("Temperature", min_value=-100, max_value=100, step=1, key="temperature")
+        st.slider("Tint", min_value=-100, max_value=100, step=1, key="tint")
 
         st.markdown("#### 🎨 Saturation")
-        st.slider("Saturation", -100, 100, 0, 1, key="saturation")
-        st.slider("Vibrance", -100, 100, 0, 1, key="vibrance")
+        st.slider("Saturation", min_value=-100, max_value=100, step=1, key="saturation")
+        st.slider("Vibrance", min_value=-100, max_value=100, step=1, key="vibrance")
 
     with adj_col4:
         st.markdown("#### 🎭 LUT")
         st.selectbox("LUT File", lut_files, key="lut_path", index=0, label_visibility="collapsed")
-        st.slider("Intensity", 0.0, 1.0, 1.0, 0.01, key="lut_intensity", format="%.2f")
+        st.slider("Intensity", min_value=0.0, max_value=1.0, step=0.01, key="lut_intensity", format="%.2f")
 
     st.markdown('</div>', unsafe_allow_html=True)
 
