@@ -389,34 +389,65 @@ else:
 st.markdown("---")
 st.markdown("### 🎚️ Adjustments")
 
-# Compact CSS for adjustments section — target by nth section after divider
+# Compact CSS — shrink entire adjustments section
 st.markdown("""
 <style>
-/* Target sliders in the adjustments area using Streamlit's data attributes */
+/* Sliders: smaller track + thumb, minimal spacing */
 div[data-testid="stSlider"] { 
-    margin-bottom: 0.25rem !important; 
-    padding-top: 0.2rem !important;
-    padding-bottom: 0.2rem !important;
+    margin-bottom: 0 !important; 
+    padding-top: 0.1rem !important;
+    padding-bottom: 0.1rem !important;
 }
 div[data-testid="stSlider"] label { 
-    font-size: 0.8rem !important; 
+    font-size: 0.75rem !important; 
     margin-bottom: 0 !important; 
-    line-height: 1.1 !important;
+    line-height: 1 !important;
 }
-div[data-testid="stSlider"] [data-baseweb="slider"] {
-    margin-top: 0 !important;
-    margin-bottom: 0 !important;
+/* Slider track height */
+div[data-testid="stSlider"] [data-baseweb="slider"] > div:first-child {
+    height: 4px !important;
 }
+/* Slider thumb */
+div[data-testid="stSlider"] [data-baseweb="slider"] [role="slider"] {
+    width: 12px !important;
+    height: 12px !important;
+}
+/* Slider value bubble — smaller */
+div[data-testid="stSlider"] [data-baseweb="tooltip"] {
+    font-size: 0.7rem !important;
+}
+/* Slider wrapper padding */
+div[data-testid="stSlider"] > div > div {
+    padding-top: 0 !important;
+    padding-bottom: 0 !important;
+}
+
+/* h4 headers — minimal */
 h4 {
-    font-size: 0.9rem !important;
-    margin-top: 0.3rem !important;
-    margin-bottom: 0.2rem !important;
+    font-size: 0.85rem !important;
+    margin-top: 0.2rem !important;
+    margin-bottom: 0.1rem !important;
 }
+
+/* Selectbox compact */
 div[data-testid="stSelectbox"] {
-    margin-bottom: 0.25rem !important;
+    margin-bottom: 0 !important;
+    padding-top: 0.1rem !important;
+    padding-bottom: 0.1rem !important;
 }
 div[data-testid="stSelectbox"] label {
-    font-size: 0.8rem !important;
+    font-size: 0.75rem !important;
+    margin-bottom: 0 !important;
+}
+
+/* Column gaps — tighter */
+div[data-testid="stHorizontalBlock"] {
+    gap: 0.5rem !important;
+}
+
+/* Markdown paragraphs — no extra space */
+.stMarkdown p {
+    margin-bottom: 0 !important;
 }
 </style>
 """, unsafe_allow_html=True)
