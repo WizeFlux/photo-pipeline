@@ -10,8 +10,8 @@ from __future__ import annotations
 
 import numpy as np
 from PIL import Image
-from PySide6.QtCore import Qt, QPoint, Signal
-from PySide6.QtGui import QImage, QPixmap, QMouseEvent, QWheelEvent
+from PySide6.QtCore import Qt, QPoint, QSize, Signal
+from PySide6.QtGui import QImage, QPixmap, QMouseEvent, QWheelEvent, QPainter
 from PySide6.QtWidgets import QFrame, QLabel
 
 
@@ -116,38 +116,49 @@ class ImageViewer(QLabel):
     def _render(self) -> None:
         if self._qimage is None:
             return
+        # Account for Retina/HiDPI: render at device pixels, not CSS pixels.
+        # QPixmap.setDevicePixelRatio() tells Qt the pixmap is N× denser so
+        # it displays at the correct physical resolution.
+        dpr = self.devicePixelRatio() or 1.0
         pix = QPixmap.fromImage(self._qimage)
         rect = self.contentsRect()
         if rect.width() <= 0 or rect.height() <= 0:
             return
 
-        # Base size = fit-to-rect (aspect preserved)
+        # Target size in device pixels (not CSS pixels)
+        target_w = int(rect.width() * dpr)
+        target_h = int(rect.height() * dpr)
+
+        # Base size = fit-to-rect (aspect preserved), in device pixels
         fit_pix = pix.scaled(
-            rect.size(), Qt.KeepAspectRatio, Qt.SmoothTransformation
+            target_w, target_h, Qt.KeepAspectRatio, Qt.SmoothTransformation
         )
+        fit_pix.setDevicePixelRatio(dpr)
+
         # Apply zoom on top of fit
         if self._zoom != 1.0:
             zw = max(1, int(fit_pix.width() * self._zoom))
             zh = max(1, int(fit_pix.height() * self._zoom))
             fit_pix = fit_pix.scaled(zw, zh, Qt.KeepAspectRatio,
                                      Qt.SmoothTransformation)
+            fit_pix.setDevicePixelRatio(dpr)
 
-        # If the zoomed pixmap is larger than the rect, we need to crop.
-        # Use a full-size pixmap and let QLabel handle it, or manually offset.
-        # Simplest: create a pixmap the size of the widget, paint the zoomed
-        # image at the pan offset, and set it.
-        if fit_pix.width() <= rect.width() and fit_pix.height() <= rect.height():
-            # Fits without panning — center it
+        # If the zoomed pixmap fits in the rect (in CSS px), center it.
+        # Compare in CSS pixels: pixmap.width()/dpr gives CSS size.
+        css_w = fit_pix.width() / dpr
+        css_h = fit_pix.height() / dpr
+        if css_w <= rect.width() and css_h <= rect.height():
             super().setPixmap(fit_pix)
         else:
             # Larger than widget — crop with pan offset
-            from PySide6.QtGui import QPainter, QPixmap as QPM
-            canvas = QPM(rect.size())
+            from PySide6.QtGui import QPixmap as QPM
+            canvas = QPM(int(rect.width() * dpr), int(rect.height() * dpr))
+            canvas.setDevicePixelRatio(dpr)
             canvas.fill(Qt.transparent)
             painter = QPainter(canvas)
-            # Center the image, then apply pan
-            x = (rect.width() - fit_pix.width()) // 2 + self._pan.x()
-            y = (rect.height() - fit_pix.height()) // 2 + self._pan.y()
+            # Center the image, then apply pan (pan is in CSS px → device px)
+            x = int((rect.width() - css_w) / 2 * dpr) + int(self._pan.x() * dpr)
+            y = int((rect.height() - css_h) / 2 * dpr) + int(self._pan.y() * dpr)
             painter.drawPixmap(x, y, fit_pix)
             painter.end()
             super().setPixmap(canvas)
