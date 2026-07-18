@@ -290,7 +290,7 @@ def build_ui():
 
         # ─── Input (small) + 3 previews in a row ─────────────────────────────
         with gr.Row():
-            input_image = gr.Image(label="Input", type="numpy", height=80, width=200, elem_id="input_image", show_fullscreen_button=False)
+            input_image = gr.Image(label="Input", type="numpy", height=80, width=200, elem_id="input_image")
             third_profile = gr.Dropdown(
                 choices=profile_options, value="None",
                 label="3rd Preview Profile",
