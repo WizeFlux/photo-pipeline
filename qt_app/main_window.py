@@ -343,14 +343,21 @@ class MainWindow(QMainWindow):
     # ─── Preview pipeline ─────────────────────────────────────────────────────
 
     def _schedule_preview(self, *_args) -> None:
-        self._debounce.start(120)
+        self._debounce.start(150)
 
     def _run_preview(self) -> None:
         if not self._image_path:
             return
-        if self._preview_worker and self._preview_worker.isRunning():
-            self._preview_worker.quit()
-            self._preview_worker.wait(200)
+
+        # Cancel any in-flight worker and wait for it to actually stop.
+        # requestInterruption() sets a flag the worker checks between steps;
+        # we then block (up to 2s) until the thread finishes so we never
+        # have two workers running at once (which caused segfaults).
+        if self._preview_worker is not None:
+            old = self._preview_worker
+            old.requestInterruption()
+            if old.isRunning():
+                old.wait(2000)  # block until it stops (checked points return fast)
 
         params = self.adjustments.get_params()
         third = self.third_profile_combo.currentText()

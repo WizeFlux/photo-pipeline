@@ -24,6 +24,8 @@ class PreviewWorker(QThread):
     """Process one image: returns (original, live, profile?) arrays.
 
     Downsizes large images for fast interactive preview.
+    Checks isInterruptionRequested() between heavy steps so the caller
+    can cancel an in-flight job before it finishes.
     """
 
     finished_preview = Signal(object, object, object)  # orig, live, profile
@@ -47,9 +49,13 @@ class PreviewWorker(QThread):
                 ratio = max_w / img.width
                 img = img.resize((max_w, int(img.height * ratio)), Image.LANCZOS)
 
+            if self.isInterruptionRequested():
+                return
             orig = np.array(img)
             live = np.array(gpu_process_from_pil(img, self._params))
 
+            if self.isInterruptionRequested():
+                return
             profile = None
             prof_name = self._third_profile_name
             if prof_name and prof_name != "None":
@@ -57,6 +63,8 @@ class PreviewWorker(QThread):
                 if prof_params is not None:
                     profile = np.array(gpu_process_from_pil(img, prof_params))
 
+            if self.isInterruptionRequested():
+                return
             self.finished_preview.emit(orig, live, profile)
         except Exception as exc:
             self.failed.emit(str(exc))
