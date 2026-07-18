@@ -32,6 +32,12 @@ def set_preview_quality(q: int) -> None:
     _PREVIEW_QUALITY = max(50, min(q, 100))
 
 
+def set_preview_max_w(w: int) -> None:
+    """Set the max preview width (called from Settings)."""
+    global _PREVIEW_MAX_W
+    _PREVIEW_MAX_W = max(400, min(w, 2400))
+
+
 def _preview_cache_key(image_path: str) -> str:
     """md5(path + mtime + size) — invalidates when the file changes."""
     st = os.stat(image_path)

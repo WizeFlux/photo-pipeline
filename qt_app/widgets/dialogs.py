@@ -81,9 +81,9 @@ class ProfilesDialog(QDialog):
 
 
 class SettingsDialog(QDialog):
-    """Popup for output format, quality, cache quality, and plot toggle."""
+    """Popup for output format, quality, cache quality, preview size, and plot toggle."""
 
-    settingsChanged = Signal(str, int, int, bool)  # format, quality, cache_quality, plots_enabled
+    settingsChanged = Signal(str, int, int, int, bool)  # format, quality, cache_quality, preview_w, plots_enabled
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -108,15 +108,21 @@ class SettingsDialog(QDialog):
         out_form.addRow("Quality:", self.quality_spin)
         layout.addWidget(out_group)
 
-        # ── Preview cache section ──
-        cache_group = QGroupBox("Preview cache")
-        cache_form = QFormLayout(cache_group)
+        # ── Preview section ──
+        preview_group = QGroupBox("Preview")
+        preview_form = QFormLayout(preview_group)
+        self.preview_w_spin = QSpinBox()
+        self.preview_w_spin.setRange(400, 2400)
+        self.preview_w_spin.setSingleStep(100)
+        self.preview_w_spin.setValue(1200)
+        self.preview_w_spin.setSuffix(" px")
+        preview_form.addRow("Max width:", self.preview_w_spin)
         self.cache_quality_spin = QSpinBox()
         self.cache_quality_spin.setRange(50, 100)
         self.cache_quality_spin.setValue(95)
         self.cache_quality_spin.setSuffix(" %")
-        cache_form.addRow("Cache quality:", self.cache_quality_spin)
-        layout.addWidget(cache_group)
+        preview_form.addRow("Cache quality:", self.cache_quality_spin)
+        layout.addWidget(preview_group)
 
         # ── Performance section ──
         perf_group = QGroupBox("Performance")
@@ -135,23 +141,26 @@ class SettingsDialog(QDialog):
             self.format_combo.currentText(),
             self.quality_spin.value(),
             self.cache_quality_spin.value(),
+            self.preview_w_spin.value(),
             self.plots_checkbox.isChecked(),
         )
         self.accept()
 
-    def get_settings(self) -> tuple[str, int, int, bool]:
+    def get_settings(self) -> tuple[str, int, int, int, bool]:
         return (self.format_combo.currentText(),
                 self.quality_spin.value(),
                 self.cache_quality_spin.value(),
+                self.preview_w_spin.value(),
                 self.plots_checkbox.isChecked())
 
     def set_settings(self, fmt: str, quality: int, cache_quality: int,
-                     plots_enabled: bool) -> None:
+                     preview_w: int, plots_enabled: bool) -> None:
         idx = self.format_combo.findText(fmt)
         if idx >= 0:
             self.format_combo.setCurrentIndex(idx)
         self.quality_spin.setValue(quality)
         self.cache_quality_spin.setValue(cache_quality)
+        self.preview_w_spin.setValue(preview_w)
         self.plots_checkbox.setChecked(plots_enabled)
 
 

@@ -69,6 +69,8 @@ class MainWindow(QMainWindow):
         self._quality: int = 90
         # Preview cache quality (used by workers)
         self._cache_quality: int = 95
+        # Preview max width (used by workers)
+        self._preview_w: int = 1200
         # Plots enabled toggle
         self._plots_enabled: bool = True
 
@@ -245,13 +247,14 @@ class MainWindow(QMainWindow):
             self._settings_dialog = SettingsDialog(self)
             self._settings_dialog.settingsChanged.connect(self._on_settings_changed)
         self._settings_dialog.set_settings(
-            self._format, self._quality, self._cache_quality, self._plots_enabled
+            self._format, self._quality, self._cache_quality,
+            self._preview_w, self._plots_enabled
         )
         self._settings_dialog.show()
         self._settings_dialog.raise_()
 
     def _on_settings_changed(self, fmt: str, quality: int, cache_quality: int,
-                             plots_enabled: bool) -> None:
+                             preview_w: int, plots_enabled: bool) -> None:
         self._format = fmt
         self._quality = quality
         # Cache quality changed → clear old cache so new quality takes effect
@@ -260,12 +263,17 @@ class MainWindow(QMainWindow):
             self._clear_preview_cache()
             from qt_app.workers import set_preview_quality
             set_preview_quality(cache_quality)
+        # Preview width changed → clear cache (old entries are wrong size)
+        if preview_w != self._preview_w:
+            self._preview_w = preview_w
+            self._clear_preview_cache()
+            from qt_app.workers import set_preview_max_w
+            set_preview_max_w(preview_w)
         # Plots toggle
         plots_toggled = plots_enabled != self._plots_enabled
         self._plots_enabled = plots_enabled
         self.plots_panel.setVisible(plots_enabled)
         if plots_toggled and plots_enabled and self._live_arr is not None:
-            # Re-enable plots → redraw with current data
             prof_name = self.third_profile_combo.currentText()
             if prof_name == "None":
                 prof_name = None
@@ -273,7 +281,7 @@ class MainWindow(QMainWindow):
             self.plots_panel.update_all(
                 self._orig_arr, self._live_arr, self._profile_arr, prof_name, params
             )
-        self._set_status(f"⚙ {fmt} q{quality} | cache {cache_quality}% | plots {'on' if plots_enabled else 'off'}")
+        self._set_status(f"⚙ {fmt} q{quality} | preview {preview_w}px | cache {cache_quality}% | plots {'on' if plots_enabled else 'off'}")
 
     def _clear_preview_cache(self) -> None:
         """Clear the preview cache directory."""
