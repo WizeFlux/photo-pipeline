@@ -279,24 +279,18 @@ def build_ui():
     with gr.Blocks(title="Photo Pipeline") as app:
         gr.Markdown("# 🖼️ Photo Pipeline")
 
+        # ─── Input (small) + 3 previews in a row ─────────────────────────────
         with gr.Row():
-            # ─── Left column: Input ───────────────────────────────────────────
-            with gr.Column(scale=1):
-                input_image = gr.Image(label="Input", type="numpy", height=400)
+            input_image = gr.Image(label="Input", type="numpy", height=150, width=200)
+            third_profile = gr.Dropdown(
+                choices=profile_options, value="None",
+                label="3rd Preview Profile",
+            )
 
-                third_profile = gr.Dropdown(
-                    choices=profile_options, value="None",
-                    label="3rd Preview Profile",
-                )
-
-            # ─── Center: Preview ──────────────────────────────────────────────
-            with gr.Column(scale=1):
-                preview_original = gr.Image(label="Original", interactive=False, height=300)
-                preview_live = gr.Image(label="Live Sliders", interactive=False, height=300)
-
-            # ─── Right: Profile preview ───────────────────────────────────────
-            with gr.Column(scale=1):
-                preview_profile = gr.Image(label="Profile", interactive=False, height=300)
+        with gr.Row():
+            preview_original = gr.Image(label="Original", interactive=False, height=350)
+            preview_live = gr.Image(label="Live Sliders", interactive=False, height=350)
+            preview_profile = gr.Image(label="Profile", interactive=False, height=350)
 
         # ─── Adjustments ─────────────────────────────────────────────────────
         gr.Markdown("### 🎚️ Adjustments")
