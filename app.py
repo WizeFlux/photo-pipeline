@@ -278,8 +278,6 @@ if sb.button("Process All", key="batch_process_btn", use_container_width=True):
 # MAIN AREA
 # ═════════════════════════════════════════════════════════════════════════════
 
-st.title("🖼️ Photo Pipeline")
-
 # Batch result
 if st.session_state.get("batch_run"):
     st.session_state.batch_run = False
@@ -391,53 +389,68 @@ else:
 st.markdown("---")
 st.markdown("### 🎚️ Adjustments")
 
-# Compact CSS for adjustment sliders
+# Compact CSS for adjustments section — target by nth section after divider
 st.markdown("""
 <style>
-/* Compact adjustments section */
-.adj-section .stSlider { margin-bottom: 0.25rem !important; }
-.adj-section .stSlider > div { padding-top: 0.25rem !important; padding-bottom: 0.25rem !important; }
-.adj-section .stSlider label { font-size: 0.8rem !important; margin-bottom: 0 !important; line-height: 1.2 !important; }
-.adj-section .stMarkdown h4 { font-size: 0.9rem !important; margin-top: 0.3rem !important; margin-bottom: 0.2rem !important; }
-.adj-section .stSelectbox { margin-bottom: 0.25rem !important; }
-.adj-section .stSelectbox label { font-size: 0.8rem !important; }
+/* Target sliders in the adjustments area using Streamlit's data attributes */
+div[data-testid="stSlider"] { 
+    margin-bottom: 0.25rem !important; 
+    padding-top: 0.2rem !important;
+    padding-bottom: 0.2rem !important;
+}
+div[data-testid="stSlider"] label { 
+    font-size: 0.8rem !important; 
+    margin-bottom: 0 !important; 
+    line-height: 1.1 !important;
+}
+div[data-testid="stSlider"] [data-baseweb="slider"] {
+    margin-top: 0 !important;
+    margin-bottom: 0 !important;
+}
+h4 {
+    font-size: 0.9rem !important;
+    margin-top: 0.3rem !important;
+    margin-bottom: 0.2rem !important;
+}
+div[data-testid="stSelectbox"] {
+    margin-bottom: 0.25rem !important;
+}
+div[data-testid="stSelectbox"] label {
+    font-size: 0.8rem !important;
+}
 </style>
 """, unsafe_allow_html=True)
 
-with st.container():
-    st.markdown('<div class="adj-section">', unsafe_allow_html=True)
+# Remove the adj-section div wrapper (not needed with global CSS)
+adj_col1, adj_col2, adj_col3, adj_col4 = st.columns(4)
 
-    adj_col1, adj_col2, adj_col3, adj_col4 = st.columns(4)
+with adj_col1:
+    st.markdown("#### ☀️ Exposure")
+    st.slider("EV", min_value=-3.0, max_value=3.0, value=0.0, step=0.01, key="ev", format="%.2f")
+    st.slider("Gamma", min_value=0.5, max_value=2.5, value=1.0, step=0.01, key="gamma", format="%.2f")
+    st.slider("Highlights", min_value=-100, max_value=100, value=0, step=1, key="highlights")
+    st.slider("Shadows", min_value=-100, max_value=100, value=0, step=1, key="shadows")
 
-    with adj_col1:
-        st.markdown("#### ☀️ Exposure")
-        st.slider("EV", min_value=-3.0, max_value=3.0, value=0.0, step=0.01, key="ev", format="%.2f")
-        st.slider("Gamma", min_value=0.5, max_value=2.5, value=1.0, step=0.01, key="gamma", format="%.2f")
-        st.slider("Highlights", min_value=-100, max_value=100, value=0, step=1, key="highlights")
-        st.slider("Shadows", min_value=-100, max_value=100, value=0, step=1, key="shadows")
+with adj_col2:
+    st.markdown("#### 📊 Contrast")
+    st.slider("Amount", min_value=-100, max_value=100, value=0, step=1, key="contrast_amount")
+    st.slider("S-Curve", min_value=0, max_value=100, value=0, step=1, key="s_curve")
+    st.slider("Black Point", min_value=0, max_value=50, value=0, step=1, key="black_point")
+    st.slider("White Point", min_value=205, max_value=255, value=255, step=1, key="white_point")
 
-    with adj_col2:
-        st.markdown("#### 📊 Contrast")
-        st.slider("Amount", min_value=-100, max_value=100, value=0, step=1, key="contrast_amount")
-        st.slider("S-Curve", min_value=0, max_value=100, value=0, step=1, key="s_curve")
-        st.slider("Black Point", min_value=0, max_value=50, value=0, step=1, key="black_point")
-        st.slider("White Point", min_value=205, max_value=255, value=255, step=1, key="white_point")
+with adj_col3:
+    st.markdown("#### 🌡️ White Balance")
+    st.slider("Temperature", min_value=-100, max_value=100, value=0, step=1, key="temperature")
+    st.slider("Tint", min_value=-100, max_value=100, value=0, step=1, key="tint")
 
-    with adj_col3:
-        st.markdown("#### 🌡️ White Balance")
-        st.slider("Temperature", min_value=-100, max_value=100, value=0, step=1, key="temperature")
-        st.slider("Tint", min_value=-100, max_value=100, value=0, step=1, key="tint")
+    st.markdown("#### 🎨 Saturation")
+    st.slider("Saturation", min_value=-100, max_value=100, value=0, step=1, key="saturation")
+    st.slider("Vibrance", min_value=-100, max_value=100, value=0, step=1, key="vibrance")
 
-        st.markdown("#### 🎨 Saturation")
-        st.slider("Saturation", min_value=-100, max_value=100, value=0, step=1, key="saturation")
-        st.slider("Vibrance", min_value=-100, max_value=100, value=0, step=1, key="vibrance")
-
-    with adj_col4:
-        st.markdown("#### 🎭 LUT")
-        st.selectbox("LUT File", lut_files, key="lut_path", index=0, label_visibility="collapsed")
-        st.slider("Intensity", min_value=0.0, max_value=1.0, value=1.0, step=0.01, key="lut_intensity", format="%.2f")
-
-    st.markdown('</div>', unsafe_allow_html=True)
+with adj_col4:
+    st.markdown("#### 🎭 LUT")
+    st.selectbox("LUT File", lut_files, key="lut_path", index=0, label_visibility="collapsed")
+    st.slider("Intensity", min_value=0.0, max_value=1.0, value=1.0, step=0.01, key="lut_intensity", format="%.2f")
 
 
 # ─── Statistics (collapsible, below adjustments) ─────────────────────────────
