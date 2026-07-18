@@ -16,6 +16,7 @@ Profiles and Batch are popup dialogs launched from toolbar buttons.
 
 from __future__ import annotations
 
+import time
 from pathlib import Path
 
 from PySide6.QtCore import Qt, QTimer
@@ -350,14 +351,11 @@ class MainWindow(QMainWindow):
             return
 
         # Cancel any in-flight worker and wait for it to actually stop.
-        # requestInterruption() sets a flag the worker checks between steps;
-        # we then block (up to 2s) until the thread finishes so we never
-        # have two workers running at once (which caused segfaults).
         if self._preview_worker is not None:
             old = self._preview_worker
             old.requestInterruption()
             if old.isRunning():
-                old.wait(2000)  # block until it stops (checked points return fast)
+                old.wait(2000)
 
         params = self.adjustments.get_params()
         third = self.third_profile_combo.currentText()
@@ -366,9 +364,11 @@ class MainWindow(QMainWindow):
         )
         self._preview_worker.finished_preview.connect(self._on_preview_ready)
         self._preview_worker.failed.connect(self._on_preview_failed)
+        self._render_start = time.perf_counter()
         self._preview_worker.start()
 
     def _on_preview_ready(self, orig, live, profile) -> None:
+        elapsed = time.perf_counter() - getattr(self, "_render_start", time.perf_counter())
         self._orig_arr = orig
         self._live_arr = live
         self._profile_arr = profile
@@ -386,6 +386,7 @@ class MainWindow(QMainWindow):
         if prof_name == "None":
             prof_name = None
         self.plots_panel.update_all(orig, live, profile, prof_name, params)
+        self._set_status(f"⏱ {elapsed:.2f}s")
 
     def _on_preview_failed(self, msg: str) -> None:
         self._set_status(f"⚠ Preview error: {msg}")
