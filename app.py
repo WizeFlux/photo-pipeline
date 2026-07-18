@@ -38,7 +38,20 @@ PROFILES_DIR = Path("profiles")
 if "uploaded_file" not in st.session_state:
     st.session_state.uploaded_file = None
 if "active_section" not in st.session_state:
-    st.session_state.active_section = "Exposure"
+    st.session_state.active_section = None
+
+# Initialize all slider keys with defaults so they exist even when
+# their accordion section is collapsed (sliders not rendered)
+_init_defaults = {
+    "ev": 0.0, "gamma": 1.0, "highlights": 0, "shadows": 0,
+    "contrast_amount": 0, "s_curve": 0, "black_point": 0, "white_point": 255,
+    "temperature": 0, "tint": 0, "saturation": 0, "vibrance": 0,
+    "lut_intensity": 1.0, "lut_path": "None",
+    "output_format": "jpeg", "output_quality": 90, "output_width": 0,
+}
+for _k, _v in _init_defaults.items():
+    if _k not in st.session_state:
+        st.session_state[_k] = _v
 
 
 # ─── Helpers ─────────────────────────────────────────────────────────────────
