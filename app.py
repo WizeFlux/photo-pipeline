@@ -48,6 +48,7 @@ _init_defaults = {
     "temperature": 0, "tint": 0, "saturation": 0, "vibrance": 0,
     "lut_intensity": 1.0, "lut_path": "None",
     "output_format": "jpeg", "output_quality": 90, "output_width": 0,
+    "third_profile_select": None,
 }
 for _k, _v in _init_defaults.items():
     if _k not in st.session_state:
