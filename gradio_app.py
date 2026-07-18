@@ -224,6 +224,9 @@ def do_batch(input_dir, output_dir, use_gpu,
 
 # ─── Statistics ──────────────────────────────────────────────────────────────
 
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
+
 def compute_stats(img_arr) -> dict:
     """Compute image statistics."""
     arr = np.array(img_arr, dtype=np.float64)
@@ -267,6 +270,177 @@ def stats_to_table(orig, live, profile=None):
             row["Profile"] = round(s_prof.get(key, 0), 2)
         rows.append(row)
     return pd.DataFrame(rows)
+
+
+def plot_histogram(arr, title):
+    """RGB + luminance histogram."""
+    r, g, b = arr[..., 0], arr[..., 1], arr[..., 2]
+    lum = 0.299 * r + 0.587 * g + 0.114 * b
+    bins = np.arange(0, 257, 1)
+    r_hist, _ = np.histogram(r, bins=bins)
+    g_hist, _ = np.histogram(g, bins=bins)
+    b_hist, _ = np.histogram(b, bins=bins)
+    lum_hist, _ = np.histogram(lum, bins=bins)
+
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(x=bins[:-1], y=r_hist, name="R",
+                             line=dict(color="red", width=1.5),
+                             fill="tozeroy", fillcolor="rgba(255,0,0,0.15)"))
+    fig.add_trace(go.Scatter(x=bins[:-1], y=g_hist, name="G",
+                             line=dict(color="green", width=1.5),
+                             fill="tozeroy", fillcolor="rgba(0,255,0,0.15)"))
+    fig.add_trace(go.Scatter(x=bins[:-1], y=b_hist, name="B",
+                             line=dict(color="blue", width=1.5),
+                             fill="tozeroy", fillcolor="rgba(0,0,255,0.15)"))
+    fig.add_trace(go.Scatter(x=bins[:-1], y=lum_hist, name="Lum",
+                             line=dict(color="gray", width=1.5, dash="dot")))
+    fig.update_layout(
+        title=title, xaxis_title="Value (0–255)", yaxis_title="Pixel count",
+        height=280, margin=dict(l=40, r=20, t=40, b=40),
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+        template="plotly_dark",
+    )
+    return fig
+
+
+def plot_histograms_row(orig, live, profile=None, profile_name=None):
+    """3 histograms in a row (or 2 if no profile)."""
+    if orig is None:
+        return None
+
+    if profile is not None:
+        fig = make_subplots(rows=1, cols=3, subplot_titles=("Original", "Live Sliders", profile_name or "Profile"))
+    else:
+        fig = make_subplots(rows=1, cols=2, subplot_titles=("Before", "After"))
+
+    def add_hists(fig, arr, col):
+        r, g, b = arr[..., 0], arr[..., 1], arr[..., 2]
+        lum = 0.299 * r + 0.587 * g + 0.114 * b
+        bins = np.arange(0, 257, 1)
+        for ch, name, color in [(r, "R", "red"), (g, "G", "green"), (b, "B", "blue")]:
+            h, _ = np.histogram(ch, bins=bins)
+            fig.add_trace(go.Scatter(x=bins[:-1], y=h, name=name,
+                                     line=dict(color=color, width=1),
+                                     fill="tozeroy", fillcolor=color.replace("red", "rgba(255,0,0,0.1)").replace("green", "rgba(0,255,0,0.1)").replace("blue", "rgba(0,0,255,0.1)")),
+                         row=1, col=col)
+        lh, _ = np.histogram(lum, bins=bins)
+        fig.add_trace(go.Scatter(x=bins[:-1], y=lh, name="Lum",
+                                 line=dict(color="gray", width=1, dash="dot")),
+                     row=1, col=col)
+
+    add_hists(fig, np.array(orig, dtype=np.float64), 1)
+    add_hists(fig, np.array(live, dtype=np.float64), 2)
+    if profile is not None:
+        add_hists(fig, np.array(profile, dtype=np.float64), 3)
+
+    fig.update_layout(height=300, showlegend=False, template="plotly_dark",
+                      margin=dict(l=20, r=20, t=50, b=40))
+    return fig
+
+
+def plot_channel_deltas(orig, live, profile=None, profile_name=None):
+    """Channel deltas: (After - Original) per channel."""
+    if orig is None:
+        return None
+
+    bins = np.arange(0, 257, 1)
+    channels = [("Red", "#ff4444", "rgba(255,68,68,0.2)"),
+                ("Green", "#44ff44", "rgba(68,255,68,0.2)"),
+                ("Blue", "#4488ff", "rgba(68,136,255,0.2)")]
+
+    orig_arr = np.array(orig, dtype=np.float64)
+    live_arr = np.array(live, dtype=np.float64)
+
+    if profile is not None:
+        fig = make_subplots(rows=1, cols=2, subplot_titles=("Live − Original", f"{profile_name} − Original"))
+    else:
+        fig = make_subplots(rows=1, cols=1, subplot_titles=("Live − Original",))
+
+    def add_deltas(fig, arr_b, col):
+        for i, (name, color, fill) in enumerate(channels):
+            orig_h, _ = np.histogram(orig_arr[..., i], bins=bins)
+            b_h, _ = np.histogram(arr_b[..., i], bins=bins)
+            delta = b_h.astype(np.float64) - orig_h.astype(np.float64)
+            fig.add_trace(go.Scatter(
+                x=bins[:-1], y=delta, name=name,
+                line=dict(color=color, width=2),
+                fill="tozeroy", fillcolor=fill,
+            ), row=1, col=col)
+
+    add_deltas(fig, live_arr, 1)
+    if profile is not None:
+        add_deltas(fig, np.array(profile, dtype=np.float64), 2)
+
+    fig.update_layout(height=320, template="plotly_dark",
+                      legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+                      margin=dict(l=30, r=20, t=50, b=40))
+    return fig
+
+
+def compute_curve(ev, gamma, contrast, s_curve, bp, wp):
+    """Compute tone curve."""
+    x = np.linspace(0, 255, 256)
+    y = x.copy().astype(np.float64)
+    y = y * (2.0 ** ev)
+    y = np.clip(y / 255.0, 0, 1) ** (1.0 / gamma) * 255.0
+    if bp > 0:
+        y = np.where(y < bp, 0, (y - bp) * 255.0 / (255 - bp))
+    if wp < 255:
+        y = np.where(y > wp, 255, y * 255.0 / wp)
+    if contrast != 0:
+        factor = 1.0 + contrast / 100.0
+        y = 128.0 + (y - 128.0) * factor
+    if s_curve > 0:
+        strength = s_curve / 100.0
+        norm = np.clip(y / 255.0, 0, 1)
+        k = 5.0 * strength
+        sigmoid = 1.0 / (1.0 + np.exp(-k * (norm - 0.5)))
+        y = (norm * (1 - strength) + sigmoid * strength) * 255.0
+    return x, np.clip(y, 0, 255)
+
+
+def plot_tone_curve(params, third_params=None, profile_name=None):
+    """Tone curve: input → output."""
+    x, y_live = compute_curve(
+        params["ev"], params["gamma"], params["contrast_amount"],
+        params["s_curve"], params["black_point"], params["white_point"],
+    )
+
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(x=x, y=x, name="Identity",
+                             line=dict(color="gray", width=1, dash="dot")))
+    fig.add_trace(go.Scatter(x=x, y=y_live, name="Live Curve",
+                             line=dict(color="#00d4aa", width=2.5)))
+    if third_params is not None:
+        _, y_prof = compute_curve(
+            third_params["ev"], third_params["gamma"], third_params["contrast_amount"],
+            third_params["s_curve"], third_params["black_point"], third_params["white_point"],
+        )
+        fig.add_trace(go.Scatter(x=x, y=y_prof, name=f"{profile_name} Curve",
+                                 line=dict(color="#ff9900", width=2, dash="dash")))
+    fig.update_layout(
+        xaxis_title="Input", yaxis_title="Output", height=300,
+        margin=dict(l=40, r=20, t=30, b=40), template="plotly_dark",
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+    )
+    return fig
+
+
+def compute_all_plots(orig, live, profile, profile_name, params, third_params):
+    """Generate all 3 plots at once."""
+    if orig is None:
+        return None, None, None
+
+    # Histograms
+    hist_fig = plot_histograms_row(orig, live, profile, profile_name)
+
+    # Channel deltas
+    delta_fig = plot_channel_deltas(orig, live, profile, profile_name)
+
+    # Tone curve
+    curve_fig = plot_tone_curve(params, third_params, profile_name)
+
+    return hist_fig, delta_fig, curve_fig
 
 
 # ─── Build Gradio UI ─────────────────────────────────────────────────────────
@@ -345,6 +519,15 @@ def build_ui():
             wrap=True,
         )
 
+        gr.Markdown("### 📈 Histograms")
+        plot_histograms = gr.Plot()
+
+        gr.Markdown("### 📊 Channel Deltas")
+        plot_deltas = gr.Plot()
+
+        gr.Markdown("### 📈 Tone Curve")
+        plot_tone = gr.Plot()
+
         # ─── Batch Processing ───────────────────────────────────────────────
         gr.Markdown("### 📁 Batch Process")
         with gr.Row():
@@ -392,13 +575,55 @@ def build_ui():
             outputs=[preview_original, preview_live, preview_profile],
         )
 
-        # Update stats when preview changes
+        # Update stats + plots when preview changes
+        def update_stats_and_plots(orig, live, profile, profile_name,
+                                    ev, gamma, highlights, shadows,
+                                    contrast_amount, s_curve, black_point, white_point,
+                                    temperature, tint, saturation, vibrance,
+                                    lut_path, lut_intensity):
+            if orig is None:
+                return None, None, None, None, None
+
+            # Stats table
+            table = stats_to_table(orig, live, profile)
+
+            # Plots
+            params = params_from_sliders(
+                ev, gamma, highlights, shadows,
+                contrast_amount, s_curve, black_point, white_point,
+                temperature, tint, saturation, vibrance,
+                lut_path, lut_intensity,
+            )
+
+            third_params = None
+            if profile_name and profile_name != "None":
+                path = PROFILES_DIR / profile_name
+                if path.exists():
+                    cfg = load_config(path)
+                    third_params = params_from_config(cfg)
+
+            hist_fig, delta_fig, curve_fig = compute_all_plots(
+                orig, live, profile, profile_name, params, third_params
+            )
+
+            return table, hist_fig, delta_fig, curve_fig
+
+        stats_inputs = [
+            preview_original, preview_live, preview_profile, third_profile,
+        ] + all_sliders
+        stats_outputs = [stats_table, plot_histograms, plot_deltas, plot_tone]
+
         for out in [preview_original, preview_live, preview_profile]:
             out.change(
-                stats_to_table,
-                inputs=[preview_original, preview_live, preview_profile],
-                outputs=[stats_table],
+                update_stats_and_plots,
+                inputs=stats_inputs,
+                outputs=stats_outputs,
             )
+        third_profile.change(
+            update_stats_and_plots,
+            inputs=stats_inputs,
+            outputs=stats_outputs,
+        )
 
         # Profile management
         load_btn.click(
