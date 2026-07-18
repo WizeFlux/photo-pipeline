@@ -1,16 +1,17 @@
-"""Main application window — assembles all panels and wires signals.
+"""Main application window — toolbar + previews + adjustments + plots.
 
 Layout:
   ┌─────────────────────────────────────────────────────────────┐
-  │ Toolbar: [Open Image] [3rd Profile ▾] [Reset]               │
+  │ [📂 Open] [📋 Profiles] [📁 Batch] [3rd ▾]     [↺ Reset]    │
   ├═════════════════════════════════════════════════════════════┤  ← drag
   │ Previews (3 in a row) — height resizable via splitter        │
   ├─────────────────────────────────────────────────────────────┤
-  │ Row 1: Exposure | Contrast | WB | Saturation  (one row)     │
-  │ Row 2: LUT | Profiles | Batch                  (one row)     │
-  ├─────────────────────────────────────────────────────────────┤
-  │ Stats (transposed) + Plots (scrollable, resizable heights)   │
+  │ Adjustments: Exposure | Contrast | WB | Sat | LUT           │
+  ├═════════════════════════════════════════════════════════════┤  ← drag
+  │ Plots: [Left ▾] [Right ▾] + 2 canvases                       │
   └─────────────────────────────────────────────────────────────┘
+
+Profiles and Batch are popup dialogs launched from toolbar buttons.
 """
 
 from __future__ import annotations
@@ -29,10 +30,9 @@ from qt_app.state import (
 )
 from qt_app.theme import apply_theme
 from qt_app.widgets.adjustments import AdjustmentsPanel
-from qt_app.widgets.batch import BatchPanel
+from qt_app.widgets.dialogs import BatchDialog, ProfilesDialog
 from qt_app.widgets.image_viewer import ImageViewer
 from qt_app.widgets.plots_panel import PlotsPanel
-from qt_app.widgets.profiles import ProfilesPanel
 from qt_app.workers import BatchWorker, PreviewWorker
 
 
@@ -54,6 +54,10 @@ class MainWindow(QMainWindow):
         self._debounce.setSingleShot(True)
         self._debounce.timeout.connect(self._run_preview)
 
+        # Popup dialogs (created lazily)
+        self._profiles_dialog: ProfilesDialog | None = None
+        self._batch_dialog: BatchDialog | None = None
+
         self._build_ui()
         self._connect_signals()
 
@@ -66,12 +70,20 @@ class MainWindow(QMainWindow):
         root.setContentsMargins(6, 6, 6, 6)
         root.setSpacing(4)
 
-        # ── Toolbar (fixed) ──
+        # ── Toolbar ──
         toolbar = QHBoxLayout()
         toolbar.setSpacing(6)
         open_btn = QPushButton("📂 Open")
         open_btn.clicked.connect(self._on_open)
         toolbar.addWidget(open_btn)
+
+        profiles_btn = QPushButton("📋 Profiles")
+        profiles_btn.clicked.connect(self._show_profiles)
+        toolbar.addWidget(profiles_btn)
+
+        batch_btn = QPushButton("📁 Batch")
+        batch_btn.clicked.connect(self._show_batch)
+        toolbar.addWidget(batch_btn)
 
         toolbar.addSpacing(8)
         lbl = QLabel("3rd:")
@@ -89,29 +101,16 @@ class MainWindow(QMainWindow):
         toolbar.addWidget(reset_btn)
         root.addLayout(toolbar)
 
-        # ── Row 1: adjustments (5 groups: Exposure|Contrast|WB|Sat|LUT) ──
+        # ── Adjustments row (fixed height) ──
         self.adjustments = AdjustmentsPanel()
         self.adjustments.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         root.addWidget(self.adjustments)
 
-        # ── Row 2: Profiles + Batch (fixed height) ──
-        controls2 = QWidget()
-        controls2.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
-        controls2_layout = QHBoxLayout(controls2)
-        controls2_layout.setContentsMargins(0, 0, 0, 0)
-        controls2_layout.setSpacing(4)
-        self.profiles_panel = ProfilesPanel()
-        self.batch_panel = BatchPanel()
-        controls2_layout.addWidget(self.profiles_panel, 1)
-        controls2_layout.addWidget(self.batch_panel, 2)
-        root.addWidget(controls2)
-
-        # ── Splitter: previews (top, resizable) | plots (bottom, resizable) ──
-        # Only these two sections are resizable. Controls above are fixed.
+        # ── Splitter: previews (top) | plots (bottom) — both resizable ──
         self.main_splitter = QSplitter(Qt.Vertical)
         self.main_splitter.setHandleWidth(8)
 
-        # Previews row
+        # Previews
         previews_widget = QWidget()
         previews_layout = QHBoxLayout(previews_widget)
         previews_layout.setContentsMargins(0, 0, 0, 0)
@@ -123,28 +122,40 @@ class MainWindow(QMainWindow):
             previews_layout.addWidget(v, 1)
         self.main_splitter.addWidget(previews_widget)
 
-        # Plots panel
+        # Plots
         self.plots_panel = PlotsPanel()
         self.main_splitter.addWidget(self.plots_panel)
 
-        # Only previews and plots stretch; both resizable via the splitter handle
         self.main_splitter.setStretchFactor(0, 3)
         self.main_splitter.setStretchFactor(1, 4)
         self.main_splitter.setSizes([300, 400])
-
         root.addWidget(self.main_splitter, 1)
 
-        # ── Status bar ──
         self.statusBar().showMessage(f"Device: {DEVICE}")
 
     # ─── Signal wiring ────────────────────────────────────────────────────────
 
     def _connect_signals(self) -> None:
         self.adjustments.paramsChanged.connect(self._schedule_preview)
-        self.profiles_panel.applyProfile.connect(self._on_apply_profile)
-        self.profiles_panel.saveProfile.connect(self._on_save_profile)
-        self.profiles_panel.profilesChanged.connect(self._on_profiles_changed)
-        self.batch_panel.runBatch.connect(self._on_run_batch)
+
+    # ─── Popup dialogs ────────────────────────────────────────────────────────
+
+    def _show_profiles(self) -> None:
+        if self._profiles_dialog is None:
+            self._profiles_dialog = ProfilesDialog(self)
+            self._profiles_dialog.applyProfile.connect(self._on_apply_profile)
+            self._profiles_dialog.saveProfile.connect(self._on_save_profile)
+            self._profiles_dialog.profilesChanged.connect(self._on_profiles_changed)
+        self._profiles_dialog.refresh()
+        self._profiles_dialog.show()
+        self._profiles_dialog.raise_()
+
+    def _show_batch(self) -> None:
+        if self._batch_dialog is None:
+            self._batch_dialog = BatchDialog(self)
+            self._batch_dialog.runBatch.connect(self._on_run_batch)
+        self._batch_dialog.show()
+        self._batch_dialog.raise_()
 
     # ─── Profile combo helpers ────────────────────────────────────────────────
 
@@ -160,7 +171,6 @@ class MainWindow(QMainWindow):
         combo.blockSignals(False)
 
     def _on_profiles_changed(self) -> None:
-        self.profiles_panel.refresh()
         self._refresh_profile_combo(self.third_profile_combo)
 
     # ─── Actions ──────────────────────────────────────────────────────────────
@@ -185,43 +195,43 @@ class MainWindow(QMainWindow):
             self._schedule_preview()
 
     def _on_save_profile(self, name: str) -> None:
-        params = params_from_values(self._collect_params())
+        params = params_from_values(self.adjustments.get_params())
         path = save_profile(name, params)
         self.statusBar().showMessage(f"Saved profile: {Path(path).name}")
         self._on_profiles_changed()
+        if self._profiles_dialog:
+            self._profiles_dialog.refresh()
 
     def _on_run_batch(self, input_dir: str, output_dir: str, use_gpu: bool) -> None:
         if not input_dir or not output_dir:
-            self.batch_panel.set_status("Enter both directories.")
+            if self._batch_dialog:
+                self._batch_dialog.set_status("Enter both directories.")
             return
         if not Path(input_dir).is_dir():
-            self.batch_panel.set_status("Input directory not found.")
+            if self._batch_dialog:
+                self._batch_dialog.set_status("Input directory not found.")
             return
-        params = params_from_values(self._collect_params())
-        self.batch_panel.set_status("Processing…")
+        params = params_from_values(self.adjustments.get_params())
+        if self._batch_dialog:
+            self._batch_dialog.set_status("Processing…")
         self._batch_worker = BatchWorker(input_dir, output_dir, params, use_gpu)
         self._batch_worker.finished_batch.connect(self._on_batch_done)
         self._batch_worker.failed.connect(self._on_batch_failed)
         self._batch_worker.start()
 
     def _on_batch_done(self, success: int, failed: int, output_dir: str) -> None:
-        self.batch_panel.set_status(
-            f"✅ {success} ok, ❌ {failed} failed → {output_dir}"
-        )
+        msg = f"✅ {success} ok, ❌ {failed} failed → {output_dir}"
+        if self._batch_dialog:
+            self._batch_dialog.set_status(msg)
         self.statusBar().showMessage(f"Batch done: {success} ok, {failed} failed")
 
     def _on_batch_failed(self, msg: str) -> None:
-        self.batch_panel.set_status(f"Error: {msg}")
-
-    # ─── Params collection ────────────────────────────────────────────────────
-
-    def _collect_params(self) -> dict:
-        return self.adjustments.get_params()
+        if self._batch_dialog:
+            self._batch_dialog.set_status(f"Error: {msg}")
 
     # ─── Preview pipeline ─────────────────────────────────────────────────────
 
     def _schedule_preview(self, *_args) -> None:
-        """Debounce slider changes — wait 120ms before reprocessing."""
         self._debounce.start(120)
 
     def _run_preview(self) -> None:
@@ -231,7 +241,7 @@ class MainWindow(QMainWindow):
             self._preview_worker.quit()
             self._preview_worker.wait(200)
 
-        params = self._collect_params()
+        params = self.adjustments.get_params()
         third = self.third_profile_combo.currentText()
         self._preview_worker = PreviewWorker(
             self._image_path, params, third if third != "None" else None
@@ -253,7 +263,7 @@ class MainWindow(QMainWindow):
         else:
             self.viewer_profile.set_array(None)
             self.viewer_profile.set_title("Profile")
-        params = params_from_values(self._collect_params())
+        params = params_from_values(self.adjustments.get_params())
         prof_name = self.third_profile_combo.currentText()
         if prof_name == "None":
             prof_name = None
