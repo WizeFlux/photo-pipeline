@@ -49,6 +49,7 @@ _init_defaults = {
     "lut_intensity": 1.0, "lut_path": "None",
     "output_format": "jpeg", "output_quality": 90, "output_width": 0,
     "third_profile_select": None,
+    "third_profile_value": None,
 }
 for _k, _v in _init_defaults.items():
     if _k not in st.session_state:
@@ -157,6 +158,11 @@ DEFAULTS = {
     "temperature": 0, "tint": 0, "saturation": 0, "vibrance": 0,
     "lut_intensity": 1.0,
 }
+
+
+def save_third_profile():
+    """Persist third_profile_select value so it survives section collapse."""
+    st.session_state["third_profile_value"] = st.session_state.get("third_profile_select", None)
 
 
 def apply_profile_to_state(profile_name: str):
@@ -272,12 +278,14 @@ if accordion_header("Profiles", "profiles", "📋"):
         third_profile = sb.selectbox(
             "Profile for 3rd preview", profiles_list,
             key="third_profile_select", index=0, label_visibility="collapsed",
+            on_change=save_third_profile,
         )
+        st.session_state["third_profile_value"] = third_profile
     else:
         third_profile = None
 
-# Initialize third_profile from state (works whether profiles section is open or closed)
-third_profile = st.session_state.get("third_profile_select", None) if profiles_list else None
+# Use persistent value (survives section collapse)
+third_profile = st.session_state.get("third_profile_value", None) if profiles_list else None
 
 # ─── Adjustments (accordion — one section at a time) ─────────────────────────
 
