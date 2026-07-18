@@ -44,12 +44,13 @@ _CHANNEL_FILLS = {
 def _style_axes(ax, title: str = "") -> None:
     ax.set_facecolor(_PANEL)
     ax.set_title(title, color=_TEXT, fontsize=10, pad=6)
-    ax.tick_params(colors=_MUTED, labelsize=8)
+    # No tick labels, no axis labels — clean visual
+    ax.set_xticklabels([])
+    ax.set_yticklabels([])
+    ax.tick_params(length=0)  # hide tick marks too
     for spine in ax.spines.values():
         spine.set_color(_GRID)
     ax.grid(True, color=_GRID, linewidth=0.5, alpha=0.6)
-    ax.xaxis.label.set_color(_MUTED)
-    ax.yaxis.label.set_color(_MUTED)
 
 
 def _draw_histograms_on_ax(ax, arr: np.ndarray) -> None:
@@ -93,10 +94,7 @@ def draw_histograms_row(
         ax = fig.add_subplot(1, n, i + 1)
         _style_axes(ax, title)
         _draw_histograms_on_ax(ax, arr)
-        ax.set_xlabel("Value (0–255)")
-        if i == 0:
-            ax.set_ylabel("Pixel count")
-    fig.tight_layout(pad=0.8)
+    fig.tight_layout(pad=0.5)
 
 
 def draw_channel_deltas(
@@ -129,14 +127,11 @@ def draw_channel_deltas(
     ax1 = fig.add_subplot(1, n, 1)
     _style_axes(ax1, "Live − Original")
     _draw_deltas(ax1, live, "Live − Original")
-    ax1.set_xlabel("Value")
-    ax1.set_ylabel("Δ pixel count")
     if profile is not None:
         ax2 = fig.add_subplot(1, n, 2)
         _style_axes(ax2, f"{profile_name} − Original")
         _draw_deltas(ax2, profile, f"{profile_name} − Original")
-        ax2.set_xlabel("Value")
-    fig.tight_layout(pad=0.8)
+    fig.tight_layout(pad=0.5)
 
 
 def draw_tone_curve(
@@ -162,9 +157,7 @@ def draw_tone_curve(
         ax.plot(x, y_prof, color="#ff9900", linewidth=2.0, linestyle="--",
                 label=profile_name if profile_name else "Profile")
 
-    ax.set_xlabel("Input")
-    ax.set_ylabel("Output")
     ax.set_xlim(0, 255)
     ax.set_ylim(0, 255)
     ax.legend(loc="upper left", framealpha=0.3, fontsize=8, labelcolor=_TEXT)
-    fig.tight_layout(pad=0.8)
+    fig.tight_layout(pad=0.5)
