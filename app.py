@@ -145,10 +145,6 @@ DEFAULTS = {
 }
 
 
-def reset_value(key: str):
-    st.session_state[key] = DEFAULTS[key]
-
-
 def apply_profile_to_state(profile_name: str):
     path = PROFILES_DIR / profile_name
     if not path.exists():
@@ -177,12 +173,8 @@ def apply_profile_to_state(profile_name: str):
 
 
 def slider_with_reset(label, key, min_val, max_val, default, step, fmt=None):
-    col_s, col_r = sb.columns([5, 1])
-    with col_s:
-        sb.slider(label, min_val, max_val, default, step, key=key, format=fmt)
-    with col_r:
-        sb.button("↺", key=f"reset_{key}", on_click=reset_value, args=(key,),
-                  help=f"Reset to {default}")
+    """Render a slider in the sidebar."""
+    sb.slider(label, min_val, max_val, default, step, key=key, format=fmt)
 
 
 # ─── Accordion helper ────────────────────────────────────────────────────────
@@ -226,7 +218,7 @@ if uploaded:
 # ─── Profile Management (accordion) ──────────────────────────────────────────
 
 if accordion_header("Profiles", "profiles", "📋"):
-    sb.markdown("**Load → Sliders**")
+    sb.markdown("**YAML → Sliders**")
     if profiles_list:
         load_choice = sb.selectbox("Select profile", profiles_list,
                                    key="load_profile_select", index=0, label_visibility="collapsed")
@@ -236,7 +228,7 @@ if accordion_header("Profiles", "profiles", "📋"):
     else:
         sb.caption("No profiles yet.")
 
-    sb.markdown("**Save Current → Profile**")
+    sb.markdown("**Sliders → YAML**")
     save_name = sb.text_input("Profile name", placeholder="my_look",
                               key="save_profile_name", label_visibility="collapsed")
     if sb.button("💾 Save Profile", key="save_profile_btn", use_container_width=True):
@@ -321,12 +313,6 @@ elif active == "Saturation":
 elif active == "LUT":
     sb.selectbox("LUT File", lut_files, key="lut_path", index=0, label_visibility="collapsed")
     slider_with_reset("LUT Intensity", "lut_intensity", 0.0, 1.0, 1.0, 0.01, "%.2f")
-
-if sb.button("🔄 Reset All Sliders", use_container_width=True):
-    for k in DEFAULTS:
-        st.session_state[k] = DEFAULTS[k]
-    st.session_state.lut_path = "None"
-    st.rerun()
 
 # ─── Output (accordion) ──────────────────────────────────────────────────────
 
