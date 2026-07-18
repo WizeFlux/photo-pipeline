@@ -85,7 +85,7 @@ def draw_histograms_row(
     fig.clear()
     fig.set_facecolor(_BG)
     n = 3 if profile is not None else 2
-    titles = ["Original", "Live Sliders"]
+    titles = ["Original", "Sliders"]
     arrays = [orig, live]
     if profile is not None:
         titles.append(profile_name or "Profile")
@@ -147,10 +147,10 @@ def draw_tone_curve(
     _style_axes(ax, "Tone Curve")
 
     x = np.linspace(0, 255, 256)
-    ax.plot(x, x, color=_MUTED, linewidth=1.0, linestyle="--", label="Identity")
+    ax.plot(x, x, color=_MUTED, linewidth=1.0, linestyle="--", label="Original")
 
     _, y_live = curve_from_params(params)
-    ax.plot(x, y_live, color="#00d4aa", linewidth=2.5, label="Live")
+    ax.plot(x, y_live, color="#00d4aa", linewidth=2.5, label="Sliders")
 
     if third_params is not None:
         _, y_prof = curve_from_params(third_params)

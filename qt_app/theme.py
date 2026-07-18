@@ -14,17 +14,17 @@ QMainWindow, QDialog {
 
 /* ─── Group boxes ─────────────────────────────────────────────── */
 QGroupBox {
-    border: 1px solid #3a3a3a;
-    border-radius: 4px;
+    border: none;
+    border-radius: 0px;
     margin-top: 11px;
-    padding: 10px 6px 6px 6px;
+    padding: 4px 4px 4px 4px;
     font-weight: 600;
     color: #b0b0b0;
 }
 QGroupBox::title {
     subcontrol-origin: margin;
     subcontrol-position: top left;
-    left: 8px;
+    left: 4px;
     padding: 0 4px;
     color: #00d4aa;
 }
