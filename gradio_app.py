@@ -116,7 +116,7 @@ def apply_profile_to_sliders(profile_name: str):
 # ─── Processing ──────────────────────────────────────────────────────────────
 
 def process_preview(
-    input_img,
+    input_file,
     ev, gamma, highlights, shadows,
     contrast_amount, s_curve, black_point, white_point,
     temperature, tint, saturation, vibrance,
@@ -124,8 +124,13 @@ def process_preview(
     third_profile_name,
 ):
     """Process image and return: original, live result, profile result (if any)."""
-    if input_img is None:
+    if input_file is None:
         return None, None, None
+
+    # Load from file path
+    img = Image.open(input_file)
+    if img.mode != "RGB":
+        img = img.convert("RGB")
 
     params = params_from_sliders(
         ev, gamma, highlights, shadows,
@@ -133,11 +138,6 @@ def process_preview(
         temperature, tint, saturation, vibrance,
         lut_path, lut_intensity,
     )
-
-    # Resize for preview speed
-    img = Image.fromarray(input_img) if isinstance(input_img, np.ndarray) else input_img
-    if img.mode != "RGB":
-        img = img.convert("RGB")
 
     # Preview at reasonable resolution
     max_w = 1200
@@ -279,18 +279,9 @@ def build_ui():
     with gr.Blocks(title="Photo Pipeline") as app:
         gr.Markdown("# 🖼️ Photo Pipeline")
 
-        # Hide preview in upload widget
-        gr.HTML("""
-        <style>
-        #input_image img { display: none !important; }
-        #input_image .toast-wrap { display: block !important; }
-        #input_image .upload-container { min-height: 60px !important; }
-        </style>
-        """)
-
-        # ─── Input (small) + 3 previews in a row ─────────────────────────────
+        # ─── Input + 3 previews in a row ──────────────────────────────────────
         with gr.Row():
-            input_image = gr.Image(label="Input", type="numpy", height=80, width=200, elem_id="input_image")
+            input_file = gr.File(label="Upload image", file_types=["image"], height=80)
             third_profile = gr.Dropdown(
                 choices=profile_options, value="None",
                 label="3rd Preview Profile",
@@ -385,19 +376,19 @@ def build_ui():
         for slider in all_sliders:
             slider.change(
                 process_preview,
-                inputs=[input_image] + all_sliders + [third_profile],
+                inputs=[input_file] + all_sliders + [third_profile],
                 outputs=[preview_original, preview_live, preview_profile],
             )
 
         # Also update on image or 3rd profile change
-        input_image.change(
+        input_file.change(
             process_preview,
-            inputs=[input_image] + all_sliders + [third_profile],
+            inputs=[input_file] + all_sliders + [third_profile],
             outputs=[preview_original, preview_live, preview_profile],
         )
         third_profile.change(
             process_preview,
-            inputs=[input_image] + all_sliders + [third_profile],
+            inputs=[input_file] + all_sliders + [third_profile],
             outputs=[preview_original, preview_live, preview_profile],
         )
 
@@ -436,12 +427,12 @@ def build_ui():
         )
 
         # Download
-        def generate_download(input_img, fmt, quality,
+        def generate_download(input_file, fmt, quality,
                               ev, gamma, highlights, shadows,
                               contrast_amount, s_curve, black_point, white_point,
                               temperature, tint, saturation, vibrance,
                               lut_path, lut_intensity):
-            if input_img is None:
+            if input_file is None:
                 return None
             params = params_from_sliders(
                 ev, gamma, highlights, shadows,
@@ -449,7 +440,7 @@ def build_ui():
                 temperature, tint, saturation, vibrance,
                 lut_path, lut_intensity,
             )
-            img = Image.fromarray(input_img) if isinstance(input_img, np.ndarray) else input_img
+            img = Image.open(input_file)
             if img.mode != "RGB":
                 img = img.convert("RGB")
             result = gpu_process_from_pil(img, params)
@@ -468,7 +459,7 @@ def build_ui():
 
         download_btn.click(
             generate_download,
-            inputs=[input_image, output_format, output_quality] + all_sliders,
+            inputs=[input_file, output_format, output_quality] + all_sliders,
             outputs=[download_file],
         )
 
