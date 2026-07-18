@@ -102,12 +102,12 @@ def _get_lut_tensor(path_str: str) -> torch.Tensor:
     lut = _parse_cube_cached(path_str)
     if lut["type"] == "3D":
         # (S, S, S, 3) → permute to (3, S, S, S) for grid_sample
-        table = lut["table"]  # numpy (S, S, S, 3)
+        table = lut["table"].astype(np.float32)  # ensure float32 for MPS
         t = torch.from_numpy(table).permute(3, 0, 1, 2).to(DEVICE)
         return t
     else:
         # 1D LUT: (S, 3) → keep as is
-        table = lut["table"]
+        table = lut["table"].astype(np.float32)
         t = torch.from_numpy(table).to(DEVICE)
         return t
 
@@ -311,17 +311,18 @@ def gpu_lut(
     if lut["type"] == "1D":
         return _gpu_1d_lut(t, lut, intensity)
     else:
-        return _gpu_3d_lut(t, lut, intensity)
+        return _gpu_3d_lut(t, lut, intensity, lut_path)
 
 
-def _gpu_3d_lut(t: torch.Tensor, lut: dict, intensity: float) -> torch.Tensor:
+def _gpu_3d_lut(t: torch.Tensor, lut: dict, intensity: float, lut_path: str = "") -> torch.Tensor:
     """3D LUT via grid_sample — extremely fast on GPU."""
     size = lut["size"]
-    dmin = torch.from_numpy(lut["domain_min"]).to(DEVICE)
-    dmax = torch.from_numpy(lut["domain_max"]).to(DEVICE)
+    # Convert to float32 explicitly (MPS doesn't support float64)
+    dmin = torch.from_numpy(lut["domain_min"].astype(np.float32)).to(DEVICE)
+    dmax = torch.from_numpy(lut["domain_max"].astype(np.float32)).to(DEVICE)
 
-    # Get LUT tensor (3, S, S, S)
-    lut_tensor = _get_lut_tensor(lut_path_str(lut))
+    # Get LUT tensor (3, S, S, S) — already float32 from numpy table
+    lut_tensor = _get_lut_tensor(lut_path)
 
     # Normalize image to 0-1, then to LUT domain
     normalized = t / 255.0
@@ -372,9 +373,9 @@ def _gpu_3d_lut(t: torch.Tensor, lut: dict, intensity: float) -> torch.Tensor:
 def _gpu_1d_lut(t: torch.Tensor, lut: dict, intensity: float) -> torch.Tensor:
     """1D LUT via simple indexing on GPU."""
     size = lut["size"]
-    table = torch.from_numpy(lut["table"]).to(DEVICE)  # (S, 3)
-    dmin = torch.from_numpy(lut["domain_min"]).to(DEVICE)
-    dmax = torch.from_numpy(lut["domain_max"]).to(DEVICE)
+    table = torch.from_numpy(lut["table"].astype(np.float32)).to(DEVICE)  # (S, 3)
+    dmin = torch.from_numpy(lut["domain_min"].astype(np.float32)).to(DEVICE)
+    dmax = torch.from_numpy(lut["domain_max"].astype(np.float32)).to(DEVICE)
 
     normalized = (t / 255.0).clamp(dmin[0], dmax[0])
     idx = ((normalized - dmin) / (dmax - dmin) * (size - 1)).long().clamp(0, size - 1)
