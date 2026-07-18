@@ -1,0 +1,51 @@
+# Default processing profile — no adjustments, just crop + format conversion
+# Use as base for your own profiles
+
+crop:
+  aspect_ratio: null        # "4:3", "16:9", "1:1", null = no crop
+  gravity: center
+  offset_x: 0.0
+  offset_y: 0.0
+
+exposure:
+  ev: 0.0                   # -3 to +3
+  gamma: 1.0                # 0.5–2.5
+  highlights: 0             # -100 to 100
+  shadows: 0                # -100 to 100
+
+contrast:
+  amount: 0                 # -100 to 100
+  s_curve: 0                # 0–100
+  black_point: 0            # 0–50
+  white_point: 255          # 205–255
+
+white_balance:
+  temperature: 0            # -100 (cool) to 100 (warm)
+  tint: 0                   # -100 (green) to 100 (magenta)
+  preset: null              # daylight, cloudy, shade, tungsten, fluorescent, flash
+
+saturation:
+  amount: 0                 # -100 to 100
+  vibrance: 0               # -100 to 100
+
+lut:
+  path: null                # path to .cube file
+  intensity: 1.0            # 0.0–1.0
+
+vignette:
+  amount: 0                 # -100 to 100
+  size: 50
+  feather: 50
+  roundness: 0
+
+grain:
+  amount: 0                 # 0–100
+  size: 1                   # 1–10
+  monochrome: true
+
+output:
+  width: null               # target width px, null = original
+  height: null
+  format: jpeg              # jpeg, webp, avif, tiff
+  quality: 90
+  suffix: _processed
