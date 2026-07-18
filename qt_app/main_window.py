@@ -53,6 +53,10 @@ class MainWindow(QMainWindow):
         self._debounce = QTimer()
         self._debounce.setSingleShot(True)
         self._debounce.timeout.connect(self._run_preview)
+        # Status reset timer — transient messages revert to the device label
+        self._status_timer = QTimer(self)
+        self._status_timer.setSingleShot(True)
+        self._status_timer.timeout.connect(self._reset_status)
 
         # Popup dialogs (created lazily)
         self._profiles_dialog: ProfilesDialog | None = None
@@ -100,6 +104,12 @@ class MainWindow(QMainWindow):
         toolbar.addWidget(self.third_profile_combo)
 
         toolbar.addStretch()
+
+        # Status indicator (replaces the bottom status bar)
+        self.status_label = QLabel(f"⚙ {DEVICE}")
+        self.status_label.setObjectName("value-label")
+        toolbar.addWidget(self.status_label)
+
         reset_btn = QPushButton("↺ Reset")
         reset_btn.clicked.connect(self._on_reset)
         toolbar.addWidget(reset_btn)
@@ -135,12 +145,22 @@ class MainWindow(QMainWindow):
         self.main_splitter.setSizes([300, 400])
         root.addWidget(self.main_splitter, 1)
 
-        self.statusBar().showMessage(f"Device: {DEVICE}")
-
     # ─── Signal wiring ────────────────────────────────────────────────────────
 
     def _connect_signals(self) -> None:
         self.adjustments.paramsChanged.connect(self._schedule_preview)
+
+    def _reset_status(self) -> None:
+        """Revert the status label to the device indicator."""
+        self.status_label.setText(f"⚙ {DEVICE}")
+
+    def _set_status(self, text: str, transient: bool = True) -> None:
+        """Show a status message; revert to device after 5s if transient."""
+        self.status_label.setText(text)
+        if transient:
+            self._status_timer.start(5000)
+        else:
+            self._status_timer.stop()
 
     # ─── Popup dialogs ────────────────────────────────────────────────────────
 
@@ -186,7 +206,7 @@ class MainWindow(QMainWindow):
         )
         if path:
             self._image_path = path
-            self.statusBar().showMessage(f"Loaded: {Path(path).name}")
+            self._set_status(f"📂 {Path(path).name}")
             self._run_preview()
 
     def _on_reset(self) -> None:
@@ -195,7 +215,7 @@ class MainWindow(QMainWindow):
     def _on_save(self) -> None:
         """Save the live-processed image with a format/quality dialog."""
         if not self._image_path or self._live_arr is None:
-            self.statusBar().showMessage("Nothing to save — open an image first.")
+            self._set_status("Nothing to save — open an image first.")
             return
 
         # Format selection dialog
@@ -250,7 +270,7 @@ class MainWindow(QMainWindow):
         if fmt == "JPEG":
             save_kwargs["subsampling"] = 0
         result.save(save_path, format=fmt, **save_kwargs)
-        self.statusBar().showMessage(f"Saved: {Path(save_path).name} ({fmt} q{quality})")
+        self._set_status(f"💾 {Path(save_path).name} ({fmt} q{quality})")
 
     def _on_apply_profile(self, name: str) -> None:
         params = load_profile_params(name)
@@ -261,7 +281,7 @@ class MainWindow(QMainWindow):
     def _on_save_profile(self, name: str) -> None:
         params = params_from_values(self.adjustments.get_params())
         path = save_profile(name, params)
-        self.statusBar().showMessage(f"Saved profile: {Path(path).name}")
+        self._set_status(f"📋 {Path(path).name}")
         self._on_profiles_changed()
         if self._profiles_dialog:
             self._profiles_dialog.refresh()
@@ -287,7 +307,7 @@ class MainWindow(QMainWindow):
         msg = f"✅ {success} ok, ❌ {failed} failed → {output_dir}"
         if self._batch_dialog:
             self._batch_dialog.set_status(msg)
-        self.statusBar().showMessage(f"Batch done: {success} ok, {failed} failed")
+        self._set_status(f"✅ {success} ok, ❌ {failed} failed")
 
     def _on_batch_failed(self, msg: str) -> None:
         if self._batch_dialog:
@@ -334,7 +354,7 @@ class MainWindow(QMainWindow):
         self.plots_panel.update_all(orig, live, profile, prof_name, params)
 
     def _on_preview_failed(self, msg: str) -> None:
-        self.statusBar().showMessage(f"Preview error: {msg}")
+        self._set_status(f"⚠ Preview error: {msg}")
 
 
 def run() -> None:
