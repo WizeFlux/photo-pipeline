@@ -53,32 +53,24 @@ def load_image_bytes(data: bytes) -> Image.Image:
 def process_single(img: Image.Image, params: dict) -> Image.Image:
     """Apply all ops to a single image (for live preview)."""
     arr = np.array(img, dtype=np.float32)
-
-    # Exposure
     arr = apply_exposure(
         arr, ev=params["ev"], gamma=params["gamma"],
         highlights=params["highlights"], shadows=params["shadows"],
     )
-    # Contrast
     arr = apply_contrast(
         arr, amount=params["contrast_amount"],
         s_curve=params["s_curve"],
         black_point=params["black_point"],
         white_point=params["white_point"],
     )
-    # White balance
     arr = apply_white_balance(arr, temperature=params["temperature"], tint=params["tint"])
-    # Saturation
     arr = apply_saturation(arr, amount=params["saturation"], vibrance=params["vibrance"])
-    # LUT
     if params.get("lut_path"):
         arr = apply_lut(arr, params["lut_path"], params["lut_intensity"])
-
     return Image.fromarray(np.clip(arr, 0, 255).astype(np.uint8), "RGB")
 
 
 def build_params_from_ui() -> dict:
-    """Collect all parameters from Streamlit widgets."""
     return {
         "ev": st.session_state.ev,
         "gamma": st.session_state.gamma,
@@ -98,7 +90,6 @@ def build_params_from_ui() -> dict:
 
 
 def params_from_config(cfg: dict) -> dict:
-    """Extract processing params from a config dict (loaded from YAML)."""
     exp = cfg.get("exposure", {})
     con = cfg.get("contrast", {})
     wb = cfg.get("white_balance", {})
@@ -123,38 +114,23 @@ def params_from_config(cfg: dict) -> dict:
 
 
 def save_profile(name: str, params: dict, output_cfg: dict | None = None):
-    """Save current params as a YAML profile."""
     if not name.endswith(".yaml"):
         name = name + ".yaml"
     profile = {
         "exposure": {
-            "ev": params["ev"],
-            "gamma": params["gamma"],
-            "highlights": params["highlights"],
-            "shadows": params["shadows"],
+            "ev": params["ev"], "gamma": params["gamma"],
+            "highlights": params["highlights"], "shadows": params["shadows"],
         },
         "contrast": {
-            "amount": params["contrast_amount"],
-            "s_curve": params["s_curve"],
-            "black_point": params["black_point"],
-            "white_point": params["white_point"],
+            "amount": params["contrast_amount"], "s_curve": params["s_curve"],
+            "black_point": params["black_point"], "white_point": params["white_point"],
         },
-        "white_balance": {
-            "temperature": params["temperature"],
-            "tint": params["tint"],
-        },
-        "saturation": {
-            "amount": params["saturation"],
-            "vibrance": params["vibrance"],
-        },
-        "lut": {
-            "path": params.get("lut_path"),
-            "intensity": params["lut_intensity"],
-        },
+        "white_balance": {"temperature": params["temperature"], "tint": params["tint"]},
+        "saturation": {"amount": params["saturation"], "vibrance": params["vibrance"]},
+        "lut": {"path": params.get("lut_path"), "intensity": params["lut_intensity"]},
     }
     if output_cfg:
         profile["output"] = output_cfg
-
     PROFILES_DIR.mkdir(parents=True, exist_ok=True)
     path = PROFILES_DIR / name
     with open(path, "w") as f:
@@ -163,38 +139,26 @@ def save_profile(name: str, params: dict, output_cfg: dict | None = None):
 
 
 def list_profiles() -> list[str]:
-    """List all YAML profile filenames."""
     if not PROFILES_DIR.exists():
         return []
     return sorted([f.name for f in PROFILES_DIR.glob("*.yaml")])
 
 
-# ─── Reset helpers ───────────────────────────────────────────────────────────
+# ─── Defaults & Reset ────────────────────────────────────────────────────────
 
 DEFAULTS = {
-    "ev": 0.0,
-    "gamma": 1.0,
-    "highlights": 0,
-    "shadows": 0,
-    "contrast_amount": 0,
-    "s_curve": 0,
-    "black_point": 0,
-    "white_point": 255,
-    "temperature": 0,
-    "tint": 0,
-    "saturation": 0,
-    "vibrance": 0,
+    "ev": 0.0, "gamma": 1.0, "highlights": 0, "shadows": 0,
+    "contrast_amount": 0, "s_curve": 0, "black_point": 0, "white_point": 255,
+    "temperature": 0, "tint": 0, "saturation": 0, "vibrance": 0,
     "lut_intensity": 1.0,
 }
 
 
 def reset_value(key: str):
-    """Reset a session state key to its default."""
     st.session_state[key] = DEFAULTS[key]
 
 
 def apply_profile_to_state(profile_name: str):
-    """Load a YAML profile and apply its values to session state sliders."""
     path = PROFILES_DIR / profile_name
     if not path.exists():
         return
@@ -222,7 +186,6 @@ def apply_profile_to_state(profile_name: str):
 
 
 def slider_with_reset(label, key, min_val, max_val, default, step, fmt=None):
-    """Render a slider with a reset button next to it."""
     col_s, col_r = st.columns([5, 1])
     with col_s:
         st.slider(label, min_val, max_val, default, step, key=key, format=fmt)
@@ -231,543 +194,446 @@ def slider_with_reset(label, key, min_val, max_val, default, step, fmt=None):
                   help=f"Reset to {default}")
 
 
-# ─── UI Layout ───────────────────────────────────────────────────────────────
+# ─── LUT files ───────────────────────────────────────────────────────────────
 
-st.title("🖼️ Photo Pipeline")
-st.markdown("Color grading with LUTs — live preview with 3-way comparison.")
-
-# ─── File Upload ─────────────────────────────────────────────────────────────
-
-col_upload, col_lut_uploads = st.columns([3, 2])
-
-with col_upload:
-    uploaded = st.file_uploader(
-        "Upload image for preview",
-        type=["tiff", "tif", "jpg", "jpeg", "png", "webp"],
-        help="Drag and drop an image to see live preview of all adjustments",
-    )
-    if uploaded:
-        st.session_state.uploaded_file = uploaded.getvalue()
-
-# LUT files
 lut_dir = Path("luts")
 lut_files = ["None"] + [str(f) for f in lut_dir.glob("*.cube")] if lut_dir.exists() else ["None"]
 
+
+# ═════════════════════════════════════════════════════════════════════════════
+# SIDEBAR — ALL CONTROLS
+# ═════════════════════════════════════════════════════════════════════════════
+
+sb = st.sidebar
+
+# ─── File Upload ─────────────────────────────────────────────────────────────
+
+sb.markdown("### 📁 Image")
+uploaded = sb.file_uploader(
+    "Upload image",
+    type=["tiff", "tif", "jpg", "jpeg", "png", "webp"],
+    help="Drag and drop an image",
+)
+if uploaded:
+    st.session_state.uploaded_file = uploaded.getvalue()
+
 # ─── Profile Management ──────────────────────────────────────────────────────
 
-st.markdown("### 📋 Profile Management")
+sb.markdown("---")
+sb.markdown("### 📋 Profiles")
 
-prof_col1, prof_col2, prof_col3 = st.columns([2, 2, 2])
+profiles_list = list_profiles()
 
-with prof_col1:
-    st.markdown("**Load Profile → Sliders**")
-    profiles_list = list_profiles()
-    if profiles_list:
-        load_choice = st.selectbox("Select profile to load", profiles_list,
-                                   key="load_profile_select", index=0)
-        if st.button("⬆️ Apply to Sliders", key="apply_profile_btn"):
-            apply_profile_to_state(load_choice)
-            st.rerun()
+# Load
+sb.markdown("**Load → Sliders**")
+if profiles_list:
+    load_choice = sb.selectbox("Select profile", profiles_list,
+                               key="load_profile_select", index=0, label_visibility="collapsed")
+    if sb.button("⬆️ Apply to Sliders", key="apply_profile_btn", use_container_width=True):
+        apply_profile_to_state(load_choice)
+        st.rerun()
+else:
+    sb.caption("No profiles yet. Save one below.")
+
+# Save
+sb.markdown("**Save Current → Profile**")
+save_name = sb.text_input("Profile name", placeholder="my_look",
+                          key="save_profile_name", label_visibility="collapsed")
+if sb.button("💾 Save Profile", key="save_profile_btn", use_container_width=True):
+    if save_name.strip():
+        params = build_params_from_ui()
+        output_cfg = {
+            "format": st.session_state.output_format,
+            "quality": st.session_state.output_quality,
+            "width": st.session_state.output_width if st.session_state.output_width > 0 else None,
+        }
+        saved_path = save_profile(save_name.strip(), params, output_cfg)
+        sb.success(f"Saved: `{saved_path.name}`")
+        st.rerun()
     else:
-        st.info("No profiles found. Save one below.")
+        sb.error("Enter a name")
 
-with prof_col2:
-    st.markdown("**Save Current Sliders → Profile**")
-    save_name = st.text_input("Profile name (e.g. `warm_look`)",
-                              placeholder="my_look", key="save_profile_name")
-    if st.button("💾 Save Profile", key="save_profile_btn"):
-        if save_name.strip():
-            params = build_params_from_ui()
-            output_cfg = {
-                "format": st.session_state.output_format,
-                "quality": st.session_state.output_quality,
-                "width": st.session_state.output_width if st.session_state.output_width > 0 else None,
-            }
-            saved_path = save_profile(save_name.strip(), params, output_cfg)
-            st.success(f"Saved: `{saved_path}`")
-            st.rerun()
-        else:
-            st.error("Enter a name first.")
+# Delete
+if profiles_list:
+    sb.markdown("**Delete**")
+    del_choice = sb.selectbox("Profile to delete", profiles_list,
+                              key="del_profile_select", index=0, label_visibility="collapsed")
+    if sb.button("🗑️ Delete", key="del_profile_btn", use_container_width=True):
+        (PROFILES_DIR / del_choice).unlink()
+        sb.success(f"Deleted: `{del_choice}`")
+        st.rerun()
 
-with prof_col3:
-    st.markdown("**Delete Profile**")
-    if profiles_list:
-        del_choice = st.selectbox("Select profile to delete", profiles_list,
-                                  key="del_profile_select", index=0)
-        if st.button("🗑️ Delete", key="del_profile_btn"):
-            del_path = PROFILES_DIR / del_choice
-            del_path.unlink()
-            st.success(f"Deleted: `{del_choice}`")
-            st.rerun()
-    else:
-        st.info("No profiles to delete.")
+# ─── 3rd Preview Profile ─────────────────────────────────────────────────────
 
-# ─── 3rd Preview Profile Selection ───────────────────────────────────────────
+sb.markdown("---")
+sb.markdown("### 🖼️ 3rd Preview")
+if profiles_list:
+    third_profile = sb.selectbox(
+        "Profile for 3rd preview", profiles_list,
+        key="third_profile_select", index=0, label_visibility="collapsed",
+    )
+else:
+    third_profile = None
+    sb.caption("Save a profile to enable")
 
-st.markdown("---")
-st.markdown("### 🖼️ Three-Way Preview")
-st.markdown("Compare: **Original** vs **Live Sliders** vs **Profile**")
+# ─── Adjustments ─────────────────────────────────────────────────────────────
 
-third_col1, third_col2 = st.columns([2, 3])
+sb.markdown("---")
+sb.markdown("### 🎚️ Adjustments")
 
-with third_col1:
-    profiles_for_preview = list_profiles()
-    if profiles_for_preview:
-        third_profile = st.selectbox(
-            "Profile for 3rd preview",
-            profiles_for_preview,
-            key="third_profile_select",
-            index=0,
-        )
-    else:
-        third_profile = None
-        st.info("Save a profile to enable 3rd preview.")
-
-with third_col2:
-    if third_profile:
-        cfg_third = load_config(PROFILES_DIR / third_profile)
-        third_params = params_from_config(cfg_third)
-        # Show summary of profile params
-        summary_parts = []
-        if third_params["ev"] != 0:
-            summary_parts.append(f"EV={third_params['ev']:.1f}")
-        if third_params["gamma"] != 1.0:
-            summary_parts.append(f"γ={third_params['gamma']:.2f}")
-        if third_params["contrast_amount"] != 0:
-            summary_parts.append(f"C={third_params['contrast_amount']}")
-        if third_params["temperature"] != 0:
-            summary_parts.append(f"T={third_params['temperature']}")
-        if third_params["saturation"] != 0:
-            summary_parts.append(f"S={third_params['saturation']}")
-        if third_params.get("lut_path"):
-            summary_parts.append(f"LUT={Path(third_params['lut_path']).name}")
-        if not summary_parts:
-            summary_parts.append("all defaults")
-        st.caption(f"Profile params: {', '.join(summary_parts)}")
-
-# ─── Sidebar: All Controls ───────────────────────────────────────────────────
-
-st.sidebar.markdown("### 🎚️ Adjustments")
-
-# Exposure
-st.sidebar.markdown("#### ☀️ Exposure")
+sb.markdown("#### ☀️ Exposure")
 slider_with_reset("Exposure (EV)", "ev", -3.0, 3.0, 0.0, 0.01, "%.2f")
 slider_with_reset("Gamma", "gamma", 0.5, 2.5, 1.0, 0.01, "%.2f")
 slider_with_reset("Highlights", "highlights", -100, 100, 0, 1)
 slider_with_reset("Shadows", "shadows", -100, 100, 0, 1)
 
-# Contrast
-st.sidebar.markdown("#### 📊 Contrast")
+sb.markdown("#### 📊 Contrast")
 slider_with_reset("Amount", "contrast_amount", -100, 100, 0, 1)
 slider_with_reset("S-Curve", "s_curve", 0, 100, 0, 1)
 slider_with_reset("Black Point", "black_point", 0, 50, 0, 1)
 slider_with_reset("White Point", "white_point", 205, 255, 255, 1)
 
-# White Balance
-st.sidebar.markdown("#### 🌡️ White Balance")
+sb.markdown("#### 🌡️ White Balance")
 slider_with_reset("Temperature", "temperature", -100, 100, 0, 1)
 slider_with_reset("Tint", "tint", -100, 100, 0, 1)
 
-# Saturation
-st.sidebar.markdown("#### 🎨 Saturation")
+sb.markdown("#### 🎨 Saturation")
 slider_with_reset("Saturation", "saturation", -100, 100, 0, 1)
 slider_with_reset("Vibrance", "vibrance", -100, 100, 0, 1)
 
-# LUT
-st.sidebar.markdown("#### 🎭 LUT")
-st.sidebar.selectbox("LUT File", lut_files, key="lut_path", index=0)
+sb.markdown("#### 🎭 LUT")
+sb.selectbox("LUT File", lut_files, key="lut_path", index=0, label_visibility="collapsed")
 slider_with_reset("LUT Intensity", "lut_intensity", 0.0, 1.0, 1.0, 0.01, "%.2f")
 
 # Reset all
-st.sidebar.markdown("---")
-if st.sidebar.button("🔄 Reset All"):
+sb.markdown("---")
+if sb.button("🔄 Reset All Sliders", use_container_width=True):
     for k in DEFAULTS:
         st.session_state[k] = DEFAULTS[k]
     st.session_state.lut_path = "None"
     st.rerun()
 
-# Output
-st.sidebar.markdown("### 💾 Output")
-st.sidebar.selectbox("Format", ["jpeg", "webp", "avif", "tiff"],
-                     key="output_format", index=0)
-st.sidebar.slider("Quality", 1, 100, 90, key="output_quality")
-st.sidebar.number_input("Width (px)", value=0, step=100,
-                        help="0 = original size", key="output_width")
+# ─── Output ──────────────────────────────────────────────────────────────────
 
-# ─── Main: Preview ───────────────────────────────────────────────────────────
+sb.markdown("---")
+sb.markdown("### 💾 Output")
+sb.selectbox("Format", ["jpeg", "webp", "avif", "tiff"],
+             key="output_format", index=0, label_visibility="collapsed")
+sb.slider("Quality", 1, 100, 90, key="output_quality")
+sb.number_input("Width (px)", value=0, step=100,
+                help="0 = original size", key="output_width")
 
-if st.session_state.uploaded_file:
-    img = load_image_bytes(st.session_state.uploaded_file)
-    params = build_params_from_ui()
 
-    # Process for preview (resize down for speed)
-    preview_w = 700
-    w, h = img.size
-    if w > preview_w:
-        preview_h = int(h * preview_w / w)
-        img_preview = img.resize((preview_w, preview_h), Image.LANCZOS)
-    else:
-        img_preview = img
+# ═════════════════════════════════════════════════════════════════════════════
+# MAIN AREA — PREVIEW + STATS
+# ═════════════════════════════════════════════════════════════════════════════
 
-    # Process live sliders result
-    with st.spinner("Processing..."):
-        result_live = process_single(img_preview, params)
+st.title("🖼️ Photo Pipeline")
 
-    # Process 3rd preview from profile
-    result_profile = None
-    if third_profile:
-        with st.spinner("Processing profile..."):
-            result_profile = process_single(img_preview, third_params)
+if not st.session_state.uploaded_file:
+    st.info("👆 Upload an image from the sidebar to start.")
+    st.stop()
 
-    # Show before/after (and 3rd if available)
-    if result_profile is not None:
-        col1, col2, col3 = st.columns(3)
-        with col1:
-            st.markdown("#### Original")
-            st.image(img_preview, width='stretch')
-        with col2:
-            st.markdown("#### Live Sliders")
-            st.image(result_live, width='stretch')
-        with col3:
-            st.markdown(f"#### Profile: {third_profile}")
-            st.image(result_profile, width='stretch')
-    else:
-        col1, col2 = st.columns(2)
-        with col1:
-            st.markdown("#### Original")
-            st.image(img_preview, width='stretch')
-        with col2:
-            st.markdown("#### After")
-            st.image(result_live, width='stretch')
+img = load_image_bytes(st.session_state.uploaded_file)
+params = build_params_from_ui()
 
-    # Use the live result for stats and download
-    result = result_live
+# Resize for preview
+preview_w = 700
+w, h = img.size
+if w > preview_w:
+    preview_h = int(h * preview_w / w)
+    img_preview = img.resize((preview_w, preview_h), Image.LANCZOS)
+else:
+    img_preview = img
 
-    # Download button
-    st.markdown("---")
-    dl_col1, dl_col2 = st.columns([1, 3])
-    with dl_col1:
-        fmt = st.session_state.output_format
-        quality = st.session_state.output_quality
-        ext = {"jpeg": "jpg", "webp": "webp", "avif": "avif", "tiff": "tiff"}[fmt]
-        pil_fmt = {"jpeg": "JPEG", "webp": "WEBP", "avif": "AVIF", "tiff": "TIFF"}[fmt]
+# Process
+with st.spinner("Processing..."):
+    result_live = process_single(img_preview, params)
 
-        full_result = process_single(img, params)
-        if st.session_state.output_width > 0:
-            ow, oh = full_result.size
-            new_h = int(oh * st.session_state.output_width / ow)
-            full_result = full_result.resize(
-                (st.session_state.output_width, new_h), Image.LANCZOS
-            )
+result_profile = None
+third_params = None
+if third_profile:
+    cfg_third = load_config(PROFILES_DIR / third_profile)
+    third_params = params_from_config(cfg_third)
+    with st.spinner("Processing profile..."):
+        result_profile = process_single(img_preview, third_params)
 
-        buf = io.BytesIO()
-        save_kwargs = {"quality": quality} if pil_fmt in ("JPEG", "WEBP", "AVIF") else {}
-        if pil_fmt == "JPEG":
-            save_kwargs["subsampling"] = 0
-        full_result.save(buf, format=pil_fmt, **save_kwargs)
+# ─── 3-way or 2-way preview ─────────────────────────────────────────────────
 
-        st.download_button(
-            f"⬇️ Download ({ext.upper()})",
-            data=buf.getvalue(),
-            file_name=f"processed.{ext}",
-            mime=f"image/{fmt}",
+if result_profile is not None:
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        st.markdown("#### Original")
+        st.image(img_preview, width='stretch')
+    with col2:
+        st.markdown("#### Live Sliders")
+        st.image(result_live, width='stretch')
+    with col3:
+        st.markdown(f"#### {third_profile}")
+        st.image(result_profile, width='stretch')
+else:
+    col1, col2 = st.columns(2)
+    with col1:
+        st.markdown("#### Original")
+        st.image(img_preview, width='stretch')
+    with col2:
+        st.markdown("#### After")
+        st.image(result_live, width='stretch')
+
+result = result_live
+
+# ─── Download ────────────────────────────────────────────────────────────────
+
+st.markdown("---")
+dl_col1, dl_col2 = st.columns([1, 3])
+with dl_col1:
+    fmt = st.session_state.output_format
+    quality = st.session_state.output_quality
+    ext = {"jpeg": "jpg", "webp": "webp", "avif": "avif", "tiff": "tiff"}[fmt]
+    pil_fmt = {"jpeg": "JPEG", "webp": "WEBP", "avif": "AVIF", "tiff": "TIFF"}[fmt]
+
+    full_result = process_single(img, params)
+    if st.session_state.output_width > 0:
+        ow, oh = full_result.size
+        new_h = int(oh * st.session_state.output_width / ow)
+        full_result = full_result.resize(
+            (st.session_state.output_width, new_h), Image.LANCZOS
         )
 
-    with dl_col2:
-        st.info("💡 Adjust sliders in the sidebar → preview updates in real-time. "
-                "Download the full-resolution result when satisfied.")
+    buf = io.BytesIO()
+    save_kwargs = {"quality": quality} if pil_fmt in ("JPEG", "WEBP", "AVIF") else {}
+    if pil_fmt == "JPEG":
+        save_kwargs["subsampling"] = 0
+    full_result.save(buf, format=pil_fmt, **save_kwargs)
 
-    # ─── Image Statistics ─────────────────────────────────────────────────────
+    st.download_button(
+        f"⬇️ Download ({ext.upper()})",
+        data=buf.getvalue(),
+        file_name=f"processed.{ext}",
+        mime=f"image/{fmt}",
+    )
 
-    st.markdown("---")
-    st.markdown("### 📊 Image Statistics")
+with dl_col2:
+    st.info("💡 Adjust sliders in the sidebar → preview updates in real-time.")
 
-    orig_arr = np.array(img_preview, dtype=np.float64)
-    proc_arr = np.array(result, dtype=np.float64)
+# ─── Image Statistics ────────────────────────────────────────────────────────
 
-    # Per-channel stats
-    def channel_stats(arr, label):
-        r, g, b = arr[..., 0], arr[..., 1], arr[..., 2]
-        lum = 0.299 * r + 0.587 * g + 0.114 * b
-        return {
-            "label": label,
-            "brightness": lum.mean(),
-            "brightness_std": lum.std(),
-            "brightness_min": lum.min(),
-            "brightness_max": lum.max(),
-            "brightness_median": np.median(lum),
-            "r_mean": r.mean(), "r_std": r.std(),
-            "g_mean": g.mean(), "g_std": g.std(),
-            "b_mean": b.mean(), "b_std": b.std(),
-            "rb_ratio": r.mean() / max(b.mean(), 1),
-            "rg_ratio": r.mean() / max(g.mean(), 1),
-            "gb_ratio": g.mean() / max(b.mean(), 1),
-            "saturation_mean": np.std(arr, axis=-1).mean(),
-            "contrast_mean": lum.std(),
-            "shadow_pct": (lum < 50).sum() / lum.size * 100,
-            "midtone_pct": ((lum >= 50) & (lum < 200)).sum() / lum.size * 100,
-            "highlight_pct": (lum >= 200).sum() / lum.size * 100,
-            "clipped_shadows": (arr.min(axis=-1) < 3).sum() / arr.shape[0] / arr.shape[1] * 100,
-            "clipped_highlights": (arr.max(axis=-1) > 252).sum() / arr.shape[0] / arr.shape[1] * 100,
-            "dynamic_range": lum.max() - lum.min(),
-            "snr": lum.mean() / max(lum.std(), 1),
-        }
+st.markdown("---")
+st.markdown("### 📊 Image Statistics")
 
-    orig_stats = channel_stats(orig_arr, "Before")
-    proc_stats = channel_stats(proc_arr, "After")
+orig_arr = np.array(img_preview, dtype=np.float64)
+proc_arr = np.array(result, dtype=np.float64)
 
-    # Build comparison table (3-way if profile available)
-    stat_rows = [
-        ("Brightness (mean)", ".1f"),
-        ("Brightness (median)", ".1f"),
-        ("Brightness (std)", ".1f"),
-        ("Brightness (min)", ".1f"),
-        ("Brightness (max)", ".1f"),
-        ("Brightness (range)", ".1f"),
-        ("Contrast (lum std)", ".1f"),
-        ("R mean", ".1f"),
-        ("G mean", ".1f"),
-        ("B mean", ".1f"),
-        ("R std", ".1f"),
-        ("G std", ".1f"),
-        ("B std", ".1f"),
-        ("R/B ratio", ".3f"),
-        ("R/G ratio", ".3f"),
-        ("G/B ratio", ".3f"),
-        ("Saturation (mean)", ".1f"),
-        ("SNR (mean/std)", ".2f"),
-        ("Shadows <50 (%)", ".1f"),
-        ("Midtones 50-200 (%)", ".1f"),
-        ("Highlights ≥200 (%)", ".1f"),
-        ("Clipped shadows (%)", ".2f"),
-        ("Clipped highlights (%)", ".2f"),
-    ]
 
-    key_map = {
-        "Brightness (mean)": "brightness",
-        "Brightness (median)": "brightness_median",
-        "Brightness (std)": "brightness_std",
-        "Brightness (min)": "brightness_min",
-        "Brightness (max)": "brightness_max",
-        "Brightness (range)": "dynamic_range",
-        "Contrast (lum std)": "contrast_mean",
-        "R mean": "r_mean",
-        "G mean": "g_mean",
-        "B mean": "b_mean",
-        "R std": "r_std",
-        "G std": "g_std",
-        "B std": "b_std",
-        "R/B ratio": "rb_ratio",
-        "R/G ratio": "rg_ratio",
-        "G/B ratio": "gb_ratio",
-        "Saturation (mean)": "saturation_mean",
-        "SNR (mean/std)": "snr",
-        "Shadows <50 (%)": "shadow_pct",
-        "Midtones 50-200 (%)": "midtone_pct",
-        "Highlights ≥200 (%)": "highlight_pct",
-        "Clipped shadows (%)": "clipped_shadows",
-        "Clipped highlights (%)": "clipped_highlights",
+def channel_stats(arr):
+    r, g, b = arr[..., 0], arr[..., 1], arr[..., 2]
+    lum = 0.299 * r + 0.587 * g + 0.114 * b
+    return {
+        "brightness": lum.mean(),
+        "brightness_std": lum.std(),
+        "brightness_min": lum.min(),
+        "brightness_max": lum.max(),
+        "brightness_median": np.median(lum),
+        "r_mean": r.mean(), "r_std": r.std(),
+        "g_mean": g.mean(), "g_std": g.std(),
+        "b_mean": b.mean(), "b_std": b.std(),
+        "rb_ratio": r.mean() / max(b.mean(), 1),
+        "rg_ratio": r.mean() / max(g.mean(), 1),
+        "gb_ratio": g.mean() / max(b.mean(), 1),
+        "saturation_mean": np.std(arr, axis=-1).mean(),
+        "contrast_mean": lum.std(),
+        "shadow_pct": (lum < 50).sum() / lum.size * 100,
+        "midtone_pct": ((lum >= 50) & (lum < 200)).sum() / lum.size * 100,
+        "highlight_pct": (lum >= 200).sum() / lum.size * 100,
+        "clipped_shadows": (arr.min(axis=-1) < 3).sum() / arr.shape[0] / arr.shape[1] * 100,
+        "clipped_highlights": (arr.max(axis=-1) > 252).sum() / arr.shape[0] / arr.shape[1] * 100,
+        "dynamic_range": lum.max() - lum.min(),
+        "snr": lum.mean() / max(lum.std(), 1),
     }
 
-    import pandas as pd
 
-    # Compute 3rd stats if available
-    profile_stats = None
-    if result_profile is not None:
-        profile_arr = np.array(result_profile, dtype=np.float64)
-        profile_stats = channel_stats(profile_arr, "Profile")
+orig_stats = channel_stats(orig_arr)
+proc_stats = channel_stats(proc_arr)
 
-    rows = []
-    for label, fmt in stat_rows:
-        key = key_map[label]
-        row = {
-            "Metric": label,
-            "Original": format(orig_stats[key], fmt),
-            "Live": format(proc_stats[key], fmt),
-        }
-        if profile_stats is not None:
-            row["Profile"] = format(profile_stats[key], fmt)
-        rows.append(row)
+profile_stats = None
+if result_profile is not None:
+    profile_stats = channel_stats(np.array(result_profile, dtype=np.float64))
 
-    st.dataframe(pd.DataFrame(rows), width='stretch', hide_index=True)
+stat_rows = [
+    ("Brightness (mean)", ".1f", "brightness"),
+    ("Brightness (median)", ".1f", "brightness_median"),
+    ("Brightness (std)", ".1f", "brightness_std"),
+    ("Brightness (min)", ".1f", "brightness_min"),
+    ("Brightness (max)", ".1f", "brightness_max"),
+    ("Brightness (range)", ".1f", "dynamic_range"),
+    ("Contrast (lum std)", ".1f", "contrast_mean"),
+    ("R mean", ".1f", "r_mean"),
+    ("G mean", ".1f", "g_mean"),
+    ("B mean", ".1f", "b_mean"),
+    ("R std", ".1f", "r_std"),
+    ("G std", ".1f", "g_std"),
+    ("B std", ".1f", "b_std"),
+    ("R/B ratio", ".3f", "rb_ratio"),
+    ("R/G ratio", ".3f", "rg_ratio"),
+    ("G/B ratio", ".3f", "gb_ratio"),
+    ("Saturation (mean)", ".1f", "saturation_mean"),
+    ("SNR (mean/std)", ".2f", "snr"),
+    ("Shadows <50 (%)", ".1f", "shadow_pct"),
+    ("Midtones 50-200 (%)", ".1f", "midtone_pct"),
+    ("Highlights ≥200 (%)", ".1f", "highlight_pct"),
+    ("Clipped shadows (%)", ".2f", "clipped_shadows"),
+    ("Clipped highlights (%)", ".2f", "clipped_highlights"),
+]
 
-    # ─── Histograms ───────────────────────────────────────────────────────────
+import pandas as pd
 
-    st.markdown("#### Histograms")
+rows = []
+for label, fmt, key in stat_rows:
+    row = {
+        "Metric": label,
+        "Original": format(orig_stats[key], fmt),
+        "Live": format(proc_stats[key], fmt),
+    }
+    if profile_stats is not None:
+        row["Profile"] = format(profile_stats[key], fmt)
+    rows.append(row)
 
-    def plot_histogram(arr, title):
-        """Plot RGB + luminance histograms using Plotly."""
-        import plotly.graph_objects as go
+st.dataframe(pd.DataFrame(rows), width='stretch', hide_index=True)
 
-        r, g, b = arr[..., 0], arr[..., 1], arr[..., 2]
-        lum = 0.299 * r + 0.587 * g + 0.114 * b
+# ─── Histograms ──────────────────────────────────────────────────────────────
 
-        bins = np.arange(0, 257, 1)
-        r_hist, _ = np.histogram(r, bins=bins)
-        g_hist, _ = np.histogram(g, bins=bins)
-        b_hist, _ = np.histogram(b, bins=bins)
-        lum_hist, _ = np.histogram(lum, bins=bins)
+st.markdown("#### Histograms")
 
-        fig = go.Figure()
-        fig.add_trace(go.Scatter(x=bins[:-1], y=r_hist, name="R",
-                                 line=dict(color="red", width=1.5),
-                                 fill="tozeroy", fillcolor="rgba(255,0,0,0.15)"))
-        fig.add_trace(go.Scatter(x=bins[:-1], y=g_hist, name="G",
-                                 line=dict(color="green", width=1.5),
-                                 fill="tozeroy", fillcolor="rgba(0,255,0,0.15)"))
-        fig.add_trace(go.Scatter(x=bins[:-1], y=b_hist, name="B",
-                                 line=dict(color="blue", width=1.5),
-                                 fill="tozeroy", fillcolor="rgba(0,0,255,0.15)"))
-        fig.add_trace(go.Scatter(x=bins[:-1], y=lum_hist, name="Lum",
-                                 line=dict(color="gray", width=1.5, dash="dot")))
 
-        fig.update_layout(
-            title=title,
-            xaxis_title="Value (0–255)",
-            yaxis_title="Pixel count",
-            height=300,
-            margin=dict(l=40, r=20, t=40, b=40),
-            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
-            template="plotly_dark",
-        )
-        return fig
-
-    if result_profile is not None:
-        hist_col1, hist_col2, hist_col3 = st.columns(3)
-        with hist_col1:
-            st.plotly_chart(plot_histogram(orig_arr, "Original"), width='stretch')
-        with hist_col2:
-            st.plotly_chart(plot_histogram(proc_arr, "Live Sliders"), width='stretch')
-        with hist_col3:
-            st.plotly_chart(plot_histogram(np.array(result_profile, dtype=np.float64), f"Profile: {third_profile}"), width='stretch')
-    else:
-        hist_col1, hist_col2 = st.columns(2)
-        with hist_col1:
-            st.plotly_chart(plot_histogram(orig_arr, "Before"), width='stretch')
-        with hist_col2:
-            st.plotly_chart(plot_histogram(proc_arr, "After"), width='stretch')
-
-    # ─── Per-channel comparison ───────────────────────────────────────────────
-
-    st.markdown("#### Per-Channel Comparison")
-
+def plot_histogram(arr, title):
     import plotly.graph_objects as go
-    from plotly.subplots import make_subplots
-
-    fig2 = make_subplots(rows=1, cols=3, subplot_titles=("Red", "Green", "Blue"))
+    r, g, b = arr[..., 0], arr[..., 1], arr[..., 2]
+    lum = 0.299 * r + 0.587 * g + 0.114 * b
     bins = np.arange(0, 257, 1)
+    r_hist, _ = np.histogram(r, bins=bins)
+    g_hist, _ = np.histogram(g, bins=bins)
+    b_hist, _ = np.histogram(b, bins=bins)
+    lum_hist, _ = np.histogram(lum, bins=bins)
 
-    channels = [("Red", "red"), ("Green", "green"), ("Blue", "blue")]
-    for i, (ch_name, color) in enumerate(channels):
-        orig_hist, _ = np.histogram(orig_arr[..., i], bins=bins)
-        proc_hist, _ = np.histogram(proc_arr[..., i], bins=bins)
-        fig2.add_trace(go.Scatter(x=bins[:-1], y=orig_hist, name=f"{ch_name} before",
-                                  line=dict(color=color, width=1.5, dash="dot")),
-                       row=1, col=i+1)
-        fig2.add_trace(go.Scatter(x=bins[:-1], y=proc_hist, name=f"{ch_name} after",
-                                  line=dict(color=color, width=2)),
-                       row=1, col=i+1)
-        if result_profile is not None:
-            prof_hist, _ = np.histogram(np.array(result_profile, dtype=np.float64)[..., i], bins=bins)
-            fig2.add_trace(go.Scatter(x=bins[:-1], y=prof_hist, name=f"{ch_name} profile",
-                                      line=dict(color=color, width=1.5, dash="dashdot")),
-                           row=1, col=i+1)
-
-    fig2.update_layout(
-        height=280,
-        margin=dict(l=40, r=20, t=50, b=40),
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(x=bins[:-1], y=r_hist, name="R",
+                             line=dict(color="red", width=1.5),
+                             fill="tozeroy", fillcolor="rgba(255,0,0,0.15)"))
+    fig.add_trace(go.Scatter(x=bins[:-1], y=g_hist, name="G",
+                             line=dict(color="green", width=1.5),
+                             fill="tozeroy", fillcolor="rgba(0,255,0,0.15)"))
+    fig.add_trace(go.Scatter(x=bins[:-1], y=b_hist, name="B",
+                             line=dict(color="blue", width=1.5),
+                             fill="tozeroy", fillcolor="rgba(0,0,255,0.15)"))
+    fig.add_trace(go.Scatter(x=bins[:-1], y=lum_hist, name="Lum",
+                             line=dict(color="gray", width=1.5, dash="dot")))
+    fig.update_layout(
+        title=title, xaxis_title="Value (0–255)", yaxis_title="Pixel count",
+        height=300, margin=dict(l=40, r=20, t=40, b=40),
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
         template="plotly_dark",
-        showlegend=False,
     )
-    st.plotly_chart(fig2, width='stretch')
+    return fig
 
-    # ─── Tone curve visualization ─────────────────────────────────────────────
 
-    st.markdown("#### Tone Curve (Input → Output)")
+if result_profile is not None:
+    hc1, hc2, hc3 = st.columns(3)
+    with hc1:
+        st.plotly_chart(plot_histogram(orig_arr, "Original"), width='stretch')
+    with hc2:
+        st.plotly_chart(plot_histogram(proc_arr, "Live Sliders"), width='stretch')
+    with hc3:
+        st.plotly_chart(plot_histogram(np.array(result_profile, dtype=np.float64), third_profile), width='stretch')
+else:
+    hc1, hc2 = st.columns(2)
+    with hc1:
+        st.plotly_chart(plot_histogram(orig_arr, "Before"), width='stretch')
+    with hc2:
+        st.plotly_chart(plot_histogram(proc_arr, "After"), width='stretch')
 
-    ev = params["ev"]
-    gamma = params["gamma"]
-    contrast = params["contrast_amount"]
-    s_curve = params["s_curve"]
-    bp = params["black_point"]
-    wp = params["white_point"]
+# ─── Per-Channel Comparison ──────────────────────────────────────────────────
 
+st.markdown("#### Per-Channel Comparison")
+
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
+
+fig2 = make_subplots(rows=1, cols=3, subplot_titles=("Red", "Green", "Blue"))
+bins = np.arange(0, 257, 1)
+
+for i, (ch_name, color) in enumerate([("Red", "red"), ("Green", "green"), ("Blue", "blue")]):
+    orig_hist, _ = np.histogram(orig_arr[..., i], bins=bins)
+    proc_hist, _ = np.histogram(proc_arr[..., i], bins=bins)
+    fig2.add_trace(go.Scatter(x=bins[:-1], y=orig_hist, name=f"{ch_name} before",
+                              line=dict(color=color, width=1.5, dash="dot")),
+                   row=1, col=i+1)
+    fig2.add_trace(go.Scatter(x=bins[:-1], y=proc_hist, name=f"{ch_name} after",
+                              line=dict(color=color, width=2)),
+                   row=1, col=i+1)
+    if result_profile is not None:
+        prof_hist, _ = np.histogram(np.array(result_profile, dtype=np.float64)[..., i], bins=bins)
+        fig2.add_trace(go.Scatter(x=bins[:-1], y=prof_hist, name=f"{ch_name} profile",
+                                  line=dict(color=color, width=1.5, dash="dashdot")),
+                       row=1, col=i+1)
+
+fig2.update_layout(height=280, margin=dict(l=40, r=20, t=50, b=40),
+                   template="plotly_dark", showlegend=False)
+st.plotly_chart(fig2, width='stretch')
+
+# ─── Tone Curve ──────────────────────────────────────────────────────────────
+
+st.markdown("#### Tone Curve (Input → Output)")
+
+
+def compute_curve(ev, gamma, contrast, s_curve, bp, wp):
     x = np.linspace(0, 255, 256)
     y = x.copy().astype(np.float64)
-
-    # Exposure
     y = y * (2.0 ** ev)
-    # Gamma
     y = np.clip(y / 255.0, 0, 1) ** (1.0 / gamma) * 255.0
-    # Black/white point
     if bp > 0:
         y = np.where(y < bp, 0, (y - bp) * 255.0 / (255 - bp))
     if wp < 255:
         y = np.where(y > wp, 255, y * 255.0 / wp)
-    # Linear contrast
     if contrast != 0:
         factor = 1.0 + contrast / 100.0
         y = 128.0 + (y - 128.0) * factor
-    # S-curve
     if s_curve > 0:
         strength = s_curve / 100.0
         norm = np.clip(y / 255.0, 0, 1)
         k = 5.0 * strength
         sigmoid = 1.0 / (1.0 + np.exp(-k * (norm - 0.5)))
         y = (norm * (1 - strength) + sigmoid * strength) * 255.0
+    return x, np.clip(y, 0, 255)
 
-    y = np.clip(y, 0, 255)
 
-    fig3 = go.Figure()
-    fig3.add_trace(go.Scatter(x=x, y=x, name="Identity",
-                              line=dict(color="gray", width=1, dash="dot")))
-    fig3.add_trace(go.Scatter(x=x, y=y, name="Live Curve",
-                              line=dict(color="#00d4aa", width=2.5)))
+x, y_live = compute_curve(
+    params["ev"], params["gamma"], params["contrast_amount"],
+    params["s_curve"], params["black_point"], params["white_point"],
+)
 
-    # Add profile curve if available
-    if result_profile is not None:
-        p_ev = third_params["ev"]
-        p_gamma = third_params["gamma"]
-        p_contrast = third_params["contrast_amount"]
-        p_s = third_params["s_curve"]
-        p_bp = third_params["black_point"]
-        p_wp = third_params["white_point"]
+fig3 = go.Figure()
+fig3.add_trace(go.Scatter(x=x, y=x, name="Identity",
+                          line=dict(color="gray", width=1, dash="dot")))
+fig3.add_trace(go.Scatter(x=x, y=y_live, name="Live Curve",
+                          line=dict(color="#00d4aa", width=2.5)))
 
-        y_p = x.copy().astype(np.float64)
-        y_p = y_p * (2.0 ** p_ev)
-        y_p = np.clip(y_p / 255.0, 0, 1) ** (1.0 / p_gamma) * 255.0
-        if p_bp > 0:
-            y_p = np.where(y_p < p_bp, 0, (y_p - p_bp) * 255.0 / (255 - p_bp))
-        if p_wp < 255:
-            y_p = np.where(y_p > p_wp, 255, y_p * 255.0 / p_wp)
-        if p_contrast != 0:
-            factor = 1.0 + p_contrast / 100.0
-            y_p = 128.0 + (y_p - 128.0) * factor
-        if p_s > 0:
-            strength = p_s / 100.0
-            norm = np.clip(y_p / 255.0, 0, 1)
-            k = 5.0 * strength
-            sigmoid = 1.0 / (1.0 + np.exp(-k * (norm - 0.5)))
-            y_p = (norm * (1 - strength) + sigmoid * strength) * 255.0
-        y_p = np.clip(y_p, 0, 255)
-
-        fig3.add_trace(go.Scatter(x=x, y=y_p, name="Profile Curve",
-                                  line=dict(color="#ff9900", width=2, dash="dash")))
-
-    fig3.update_layout(
-        xaxis_title="Input", yaxis_title="Output",
-        height=300,
-        margin=dict(l=40, r=20, t=30, b=40),
-        template="plotly_dark",
-        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+if result_profile is not None:
+    _, y_prof = compute_curve(
+        third_params["ev"], third_params["gamma"], third_params["contrast_amount"],
+        third_params["s_curve"], third_params["black_point"], third_params["white_point"],
     )
-    st.plotly_chart(fig3, width='stretch')
+    fig3.add_trace(go.Scatter(x=x, y=y_prof, name="Profile Curve",
+                              line=dict(color="#ff9900", width=2, dash="dash")))
 
-else:
-    st.info("👆 Upload an image to start. Adjust the sliders in the sidebar to see live changes.")
+fig3.update_layout(
+    xaxis_title="Input", yaxis_title="Output", height=300,
+    margin=dict(l=40, r=20, t=30, b=40), template="plotly_dark",
+    legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+)
+st.plotly_chart(fig3, width='stretch')
 
 
-# ─── Batch Process Section ───────────────────────────────────────────────────
+# ─── Batch Process ───────────────────────────────────────────────────────────
 
 st.markdown("---")
 st.markdown("### 📁 Batch Process Directory")
