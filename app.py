@@ -192,9 +192,10 @@ if uploaded:
     st.session_state.uploaded_file = uploaded.getvalue()
 
 # 3rd Preview
+sb.markdown("### 🖼️ 3rd Preview")
 preview_options = ["None"] + profiles_list
-third_choice = sb.selectbox("🖼️ 3rd Preview", preview_options,
-                            key="third_profile_select", index=0)
+third_choice = sb.selectbox("Select", preview_options,
+                            key="third_profile_select", index=0, label_visibility="collapsed")
 third_profile = third_choice if third_choice != "None" else None
 
 # Profiles
@@ -389,35 +390,50 @@ st.download_button(
 st.markdown("---")
 st.markdown("### 🎚️ Adjustments")
 
-adj_col1, adj_col2, adj_col3, adj_col4 = st.columns(4)
+# Compact CSS for adjustment sliders
+st.markdown("""
+<style>
+.adj-section .stSlider > div > div { padding-top: 0.5rem; padding-bottom: 0.5rem; }
+.adj-section .stMarkdown h4 { font-size: 0.95rem; margin-bottom: 0.3rem; }
+.adj-section .stSlider label { font-size: 0.85rem; margin-bottom: 0; }
+.adj-section .stSlider { margin-bottom: 0.3rem; }
+</style>
+""", unsafe_allow_html=True)
 
-with adj_col1:
-    st.markdown("#### ☀️ Exposure")
-    st.slider("EV", -3.0, 3.0, 0.0, 0.01, key="ev", format="%.2f")
-    st.slider("Gamma", 0.5, 2.5, 1.0, 0.01, key="gamma", format="%.2f")
-    st.slider("Highlights", -100, 100, 0, 1, key="highlights")
-    st.slider("Shadows", -100, 100, 0, 1, key="shadows")
+with st.container():
+    st.markdown('<div class="adj-section">', unsafe_allow_html=True)
 
-with adj_col2:
-    st.markdown("#### 📊 Contrast")
-    st.slider("Amount", -100, 100, 0, 1, key="contrast_amount")
-    st.slider("S-Curve", 0, 100, 0, 1, key="s_curve")
-    st.slider("Black Point", 0, 50, 0, 1, key="black_point")
-    st.slider("White Point", 205, 255, 255, 1, key="white_point")
+    adj_col1, adj_col2, adj_col3, adj_col4 = st.columns(4)
 
-with adj_col3:
-    st.markdown("#### 🌡️ White Balance")
-    st.slider("Temperature", -100, 100, 0, 1, key="temperature")
-    st.slider("Tint", -100, 100, 0, 1, key="tint")
+    with adj_col1:
+        st.markdown("#### ☀️ Exposure")
+        st.slider("EV", -3.0, 3.0, 0.0, 0.01, key="ev", format="%.2f")
+        st.slider("Gamma", 0.5, 2.5, 1.0, 0.01, key="gamma", format="%.2f")
+        st.slider("Highlights", -100, 100, 0, 1, key="highlights")
+        st.slider("Shadows", -100, 100, 0, 1, key="shadows")
 
-    st.markdown("#### 🎨 Saturation")
-    st.slider("Saturation", -100, 100, 0, 1, key="saturation")
-    st.slider("Vibrance", -100, 100, 0, 1, key="vibrance")
+    with adj_col2:
+        st.markdown("#### 📊 Contrast")
+        st.slider("Amount", -100, 100, 0, 1, key="contrast_amount")
+        st.slider("S-Curve", 0, 100, 0, 1, key="s_curve")
+        st.slider("Black Point", 0, 50, 0, 1, key="black_point")
+        st.slider("White Point", 205, 255, 255, 1, key="white_point")
 
-with adj_col4:
-    st.markdown("#### 🎭 LUT")
-    st.selectbox("LUT File", lut_files, key="lut_path", index=0, label_visibility="collapsed")
-    st.slider("Intensity", 0.0, 1.0, 1.0, 0.01, key="lut_intensity", format="%.2f")
+    with adj_col3:
+        st.markdown("#### 🌡️ White Balance")
+        st.slider("Temperature", -100, 100, 0, 1, key="temperature")
+        st.slider("Tint", -100, 100, 0, 1, key="tint")
+
+        st.markdown("#### 🎨 Saturation")
+        st.slider("Saturation", -100, 100, 0, 1, key="saturation")
+        st.slider("Vibrance", -100, 100, 0, 1, key="vibrance")
+
+    with adj_col4:
+        st.markdown("#### 🎭 LUT")
+        st.selectbox("LUT File", lut_files, key="lut_path", index=0, label_visibility="collapsed")
+        st.slider("Intensity", 0.0, 1.0, 1.0, 0.01, key="lut_intensity", format="%.2f")
+
+    st.markdown('</div>', unsafe_allow_html=True)
 
 
 # ─── Statistics (collapsible, below adjustments) ─────────────────────────────
