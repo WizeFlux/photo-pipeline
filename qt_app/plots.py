@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import numpy as np
 from matplotlib.figure import Figure
+from matplotlib.ticker import MaxNLocator
 
 from qt_app.state import curve_from_params
 
@@ -24,7 +25,7 @@ from qt_app.state import curve_from_params
 
 _BG = "#1e1e1e"
 _PANEL = "#232323"
-_GRID = "#2a2a2a"
+_GRID = "#3a3a3a"
 _TEXT = "#b0b0b0"
 _MUTED = "#666666"
 
@@ -57,7 +58,10 @@ def _style_axes(ax, title: str = "") -> None:
     for spine in ax.spines.values():
         spine.set_color(_GRID)
         spine.set_linewidth(0.5)
-    ax.grid(True, color=_GRID, linewidth=0.5, alpha=0.6)
+    ax.grid(True, color=_GRID, linewidth=0.5, alpha=0.8)
+    # Twice as many grid lines via MaxNLocator
+    ax.xaxis.set_major_locator(MaxNLocator(nbins=18))
+    ax.yaxis.set_major_locator(MaxNLocator(nbins=12))
 
 
 def _draw_histograms_on_ax(ax, arr: np.ndarray) -> None:
