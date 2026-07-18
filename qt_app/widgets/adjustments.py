@@ -1,29 +1,27 @@
-"""Adjustment sliders — 4 groups in a single row (compact) + separate LUT panel.
+"""Adjustment sliders — 5 groups in a single row.
 
-AdjustmentsPanel: Exposure, Contrast, White Balance, Saturation — horizontal.
-LutPanel:         LUT file + intensity (placed in the second control row).
-
-Both emit `paramsChanged(dict)` with their subset of params. The main window
-merges them into the full 14-param dict.
+Groups: Exposure | Contrast | White Balance | Saturation | LUT
+All emit `paramsChanged(dict)` with the full 14-param set.
 """
 
 from __future__ import annotations
 
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (
-    QComboBox, QGroupBox, QHBoxLayout, QLabel, QPushButton, QSlider,
-    QVBoxLayout, QWidget,
+    QComboBox, QGroupBox, QHBoxLayout, QLabel, QSlider, QVBoxLayout, QWidget,
 )
 
 from qt_app.state import PARAM_DEFAULTS, list_luts
 
 
-# ─── Compact slider ──────────────────────────────────────────────────────────
+# ─── Compact QSS ─────────────────────────────────────────────────────────────
 
 _COMPACT_QSS = """
 QGroupBox { margin-top: 11px; padding: 10px 6px 6px 6px; }
 """
 
+
+# ─── Labeled slider ──────────────────────────────────────────────────────────
 
 class _LabeledSlider(QWidget):
     """Compact slider: name label | slider | value label, on one line."""
@@ -85,7 +83,7 @@ class _LabeledSlider(QWidget):
         self.slider.blockSignals(False)
 
 
-# ─── Slider spec table ───────────────────────────────────────────────────────
+# ─── Slider spec tables ──────────────────────────────────────────────────────
 # (key, label, min, max, default, step, fmt)
 
 _EXPOSURE_SPECS = [
@@ -113,27 +111,48 @@ _SAT_SPECS = [
 ]
 
 
-def _build_group(title: str, specs: list[tuple], parent_widget) -> QGroupBox:
+def _build_slider_group(title: str, specs: list[tuple], panel) -> QGroupBox:
     """Build a compact QGroupBox with one slider per spec."""
     group = QGroupBox(title)
     layout = QVBoxLayout(group)
     layout.setContentsMargins(6, 10, 6, 6)
     layout.setSpacing(2)
-    sliders: dict[str, _LabeledSlider] = {}
     for key, label, vmin, vmax, default, step, fmt in specs:
         slider = _LabeledSlider(label, vmin, vmax, default, step, fmt)
-        slider.valueChanged.connect(parent_widget._on_slider_changed)
-        sliders[key] = slider
+        slider.valueChanged.connect(panel._on_param_changed)
+        panel._sliders[key] = slider
         layout.addWidget(slider)
     layout.addStretch()
-    parent_widget._sliders.update(sliders)
     return group
 
 
-# ─── Adjustments panel (4 groups in a row) ───────────────────────────────────
+def _build_lut_group(panel) -> QGroupBox:
+    """Build the LUT group: file dropdown + intensity slider."""
+    group = QGroupBox("🎭 LUT")
+    layout = QVBoxLayout(group)
+    layout.setContentsMargins(6, 10, 6, 6)
+    layout.setSpacing(2)
+
+    row = QHBoxLayout()
+    row.setSpacing(4)
+    row.addWidget(QLabel("File"))
+    panel._lut_combo = QComboBox()
+    panel._lut_combo.addItems(list_luts())
+    panel._lut_combo.currentTextChanged.connect(lambda *_: panel._on_param_changed())
+    row.addWidget(panel._lut_combo, 1)
+    layout.addLayout(row)
+
+    panel._intensity_slider = _LabeledSlider("Intensity", 0, 1, 1.0, 0.01, "{:.2f}")
+    panel._intensity_slider.valueChanged.connect(lambda *_: panel._on_param_changed())
+    layout.addWidget(panel._intensity_slider)
+    layout.addStretch()
+    return group
+
+
+# ─── Adjustments panel (5 groups in a row) ───────────────────────────────────
 
 class AdjustmentsPanel(QWidget):
-    """Exposure | Contrast | White Balance | Saturation — one horizontal row."""
+    """Exposure | Contrast | WB | Saturation | LUT — one horizontal row."""
 
     paramsChanged = Signal(dict)
 
@@ -141,96 +160,53 @@ class AdjustmentsPanel(QWidget):
         super().__init__(parent)
         self.setStyleSheet(_COMPACT_QSS)
         self._sliders: dict[str, _LabeledSlider] = {}
+        self._lut_combo: QComboBox | None = None
+        self._intensity_slider: _LabeledSlider | None = None
         self._build()
         self._emit_params()
 
     def _build(self) -> None:
         layout = QHBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(6)
-        layout.addWidget(_build_group("☀️ Exposure", _EXPOSURE_SPECS, self), 1)
-        layout.addWidget(_build_group("📊 Contrast", _CONTRAST_SPECS, self), 1)
-        layout.addWidget(_build_group("🌡️ WB", _WB_SPECS, self), 1)
-        layout.addWidget(_build_group("🎨 Saturation", _SAT_SPECS, self), 1)
+        layout.setSpacing(4)
+        layout.addWidget(_build_slider_group("☀️ Exposure", _EXPOSURE_SPECS, self), 1)
+        layout.addWidget(_build_slider_group("📊 Contrast", _CONTRAST_SPECS, self), 1)
+        layout.addWidget(_build_slider_group("🌡️ WB", _WB_SPECS, self), 1)
+        layout.addWidget(_build_slider_group("🎨 Sat", _SAT_SPECS, self), 1)
+        layout.addWidget(_build_lut_group(self), 1)
 
-    def _on_slider_changed(self, *_args) -> None:
+    def _on_param_changed(self, *_args) -> None:
         self._emit_params()
 
     def _emit_params(self) -> None:
         params = {key: slider.value() for key, slider in self._sliders.items()}
+        params["lut_path"] = self._lut_combo.currentText()
+        params["lut_intensity"] = self._intensity_slider.value()
         self.paramsChanged.emit(params)
 
     # ── Public API ────────────────────────────────────────────────────────────
 
     def get_params(self) -> dict:
-        return {key: slider.value() for key, slider in self._sliders.items()}
+        params = {key: slider.value() for key, slider in self._sliders.items()}
+        params["lut_path"] = self._lut_combo.currentText()
+        params["lut_intensity"] = self._intensity_slider.value()
+        return params
 
     def set_params(self, params: dict) -> None:
         for key, slider in self._sliders.items():
             if key in params:
                 slider.set_value(params[key])
-
-    def reset(self) -> None:
-        self.set_params(PARAM_DEFAULTS)
-        self._emit_params()
-
-
-# ─── LUT panel (separate — lives in the second control row) ──────────────────
-
-class LutPanel(QWidget):
-    """LUT file dropdown + intensity slider."""
-
-    paramsChanged = Signal(dict)
-
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self.setStyleSheet(_COMPACT_QSS)
-        self._build()
-        self._emit_params()
-
-    def _build(self) -> None:
-        group = QGroupBox("🎭 LUT")
-        outer = QVBoxLayout(self)
-        outer.setContentsMargins(0, 0, 0, 0)
-        outer.addWidget(group)
-        layout = QVBoxLayout(group)
-        layout.setContentsMargins(6, 10, 6, 6)
-        layout.setSpacing(4)
-
-        row = QHBoxLayout()
-        row.setSpacing(4)
-        row.addWidget(QLabel("File"))
-        self._lut_combo = QComboBox()
-        self._lut_combo.addItems(list_luts())
-        self._lut_combo.currentTextChanged.connect(self._emit_params)
-        row.addWidget(self._lut_combo, 1)
-        layout.addLayout(row)
-
-        self._intensity = _LabeledSlider("Intensity", 0, 1, 1.0, 0.01, "{:.2f}")
-        self._intensity.valueChanged.connect(lambda *_: self._emit_params())
-        layout.addWidget(self._intensity)
-        layout.addStretch()
-
-    def _emit_params(self, *_args) -> None:
-        self.paramsChanged.emit({
-            "lut_path": self._lut_combo.currentText(),
-            "lut_intensity": self._intensity.value(),
-        })
-
-    def get_params(self) -> dict:
-        return {
-            "lut_path": self._lut_combo.currentText(),
-            "lut_intensity": self._intensity.value(),
-        }
-
-    def set_params(self, params: dict) -> None:
         lut = params.get("lut_path") or "None"
         idx = self._lut_combo.findText(lut)
         self._lut_combo.blockSignals(True)
         self._lut_combo.setCurrentIndex(idx if idx >= 0 else 0)
         self._lut_combo.blockSignals(False)
         if "lut_intensity" in params:
-            self._intensity.set_value(params["lut_intensity"])
+            self._intensity_slider.set_value(params["lut_intensity"])
+
+    def reset(self) -> None:
+        self.set_params(PARAM_DEFAULTS)
+        self._emit_params()
 
     def refresh_luts(self) -> None:
         current = self._lut_combo.currentText()

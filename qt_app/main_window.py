@@ -28,7 +28,7 @@ from qt_app.state import (
     load_profile_params, params_from_values, save_profile,
 )
 from qt_app.theme import apply_theme
-from qt_app.widgets.adjustments import AdjustmentsPanel, LutPanel
+from qt_app.widgets.adjustments import AdjustmentsPanel
 from qt_app.widgets.batch import BatchPanel
 from qt_app.widgets.image_viewer import ImageViewer
 from qt_app.widgets.plots_panel import PlotsPanel
@@ -89,23 +89,21 @@ class MainWindow(QMainWindow):
         toolbar.addWidget(reset_btn)
         root.addLayout(toolbar)
 
-        # ── Row 1: adjustments (4 groups, fixed height) ──
+        # ── Row 1: adjustments (5 groups: Exposure|Contrast|WB|Sat|LUT) ──
         self.adjustments = AdjustmentsPanel()
         self.adjustments.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         root.addWidget(self.adjustments)
 
-        # ── Row 2: LUT + Profiles + Batch (fixed height) ──
+        # ── Row 2: Profiles + Batch (fixed height) ──
         controls2 = QWidget()
         controls2.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         controls2_layout = QHBoxLayout(controls2)
         controls2_layout.setContentsMargins(0, 0, 0, 0)
         controls2_layout.setSpacing(4)
-        self.lut_panel = LutPanel()
         self.profiles_panel = ProfilesPanel()
         self.batch_panel = BatchPanel()
-        controls2_layout.addWidget(self.lut_panel, 1)
         controls2_layout.addWidget(self.profiles_panel, 1)
-        controls2_layout.addWidget(self.batch_panel, 1)
+        controls2_layout.addWidget(self.batch_panel, 2)
         root.addWidget(controls2)
 
         # ── Splitter: previews (top, resizable) | plots (bottom, resizable) ──
@@ -143,7 +141,6 @@ class MainWindow(QMainWindow):
 
     def _connect_signals(self) -> None:
         self.adjustments.paramsChanged.connect(self._schedule_preview)
-        self.lut_panel.paramsChanged.connect(self._schedule_preview)
         self.profiles_panel.applyProfile.connect(self._on_apply_profile)
         self.profiles_panel.saveProfile.connect(self._on_save_profile)
         self.profiles_panel.profilesChanged.connect(self._on_profiles_changed)
@@ -180,14 +177,11 @@ class MainWindow(QMainWindow):
 
     def _on_reset(self) -> None:
         self.adjustments.reset()
-        self.lut_panel.set_params({"lut_path": "None", "lut_intensity": 1.0})
-        self.lut_panel._emit_params()
 
     def _on_apply_profile(self, name: str) -> None:
         params = load_profile_params(name)
         if params is not None:
             self.adjustments.set_params(params)
-            self.lut_panel.set_params(params)
             self._schedule_preview()
 
     def _on_save_profile(self, name: str) -> None:
@@ -222,10 +216,7 @@ class MainWindow(QMainWindow):
     # ─── Params collection ────────────────────────────────────────────────────
 
     def _collect_params(self) -> dict:
-        """Merge params from AdjustmentsPanel + LutPanel."""
-        params = self.adjustments.get_params()
-        params.update(self.lut_panel.get_params())
-        return params
+        return self.adjustments.get_params()
 
     # ─── Preview pipeline ─────────────────────────────────────────────────────
 
