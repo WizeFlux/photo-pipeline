@@ -475,4 +475,4 @@ def build_ui():
 if __name__ == "__main__":
     print(f"Device: {DEVICE}")
     app = build_ui()
-    app.launch(server_name="0.0.0.0", server_port=7860)
+    app.launch(server_name="127.0.0.1", server_port=7860, inbrowser=True)
