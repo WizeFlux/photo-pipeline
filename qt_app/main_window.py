@@ -20,7 +20,7 @@ from pathlib import Path
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtWidgets import (
     QComboBox, QFileDialog, QHBoxLayout, QLabel, QMainWindow, QMessageBox,
-    QPushButton, QSplitter, QVBoxLayout, QWidget,
+    QPushButton, QSizePolicy, QSplitter, QVBoxLayout, QWidget,
 )
 
 from pipeline.gpu_ops import DEVICE
@@ -63,22 +63,22 @@ class MainWindow(QMainWindow):
         central = QWidget()
         self.setCentralWidget(central)
         root = QVBoxLayout(central)
-        root.setContentsMargins(8, 8, 8, 8)
-        root.setSpacing(6)
+        root.setContentsMargins(6, 6, 6, 6)
+        root.setSpacing(4)
 
-        # ── Toolbar ──
+        # ── Toolbar (fixed) ──
         toolbar = QHBoxLayout()
-        toolbar.setSpacing(8)
-        open_btn = QPushButton("📂 Open Image")
+        toolbar.setSpacing(6)
+        open_btn = QPushButton("📂 Open")
         open_btn.clicked.connect(self._on_open)
         toolbar.addWidget(open_btn)
 
-        toolbar.addSpacing(12)
-        lbl = QLabel("3rd Profile:")
+        toolbar.addSpacing(8)
+        lbl = QLabel("3rd:")
         lbl.setObjectName("value-label")
         toolbar.addWidget(lbl)
         self.third_profile_combo = QComboBox()
-        self.third_profile_combo.setMinimumWidth(160)
+        self.third_profile_combo.setMinimumWidth(140)
         self._refresh_profile_combo(self.third_profile_combo)
         self.third_profile_combo.currentTextChanged.connect(self._schedule_preview)
         toolbar.addWidget(self.third_profile_combo)
@@ -89,54 +89,52 @@ class MainWindow(QMainWindow):
         toolbar.addWidget(reset_btn)
         root.addLayout(toolbar)
 
-        # ── Main vertical splitter: [previews | controls | plots] ──
-        main_splitter = QSplitter(Qt.Vertical)
-        main_splitter.setHandleWidth(6)
+        # ── Row 1: adjustments (4 groups, fixed height) ──
+        self.adjustments = AdjustmentsPanel()
+        self.adjustments.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        root.addWidget(self.adjustments)
 
-        # ── Row: previews (3 in a row) ──
+        # ── Row 2: LUT + Profiles + Batch (fixed height) ──
+        controls2 = QWidget()
+        controls2.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        controls2_layout = QHBoxLayout(controls2)
+        controls2_layout.setContentsMargins(0, 0, 0, 0)
+        controls2_layout.setSpacing(4)
+        self.lut_panel = LutPanel()
+        self.profiles_panel = ProfilesPanel()
+        self.batch_panel = BatchPanel()
+        controls2_layout.addWidget(self.lut_panel, 1)
+        controls2_layout.addWidget(self.profiles_panel, 1)
+        controls2_layout.addWidget(self.batch_panel, 1)
+        root.addWidget(controls2)
+
+        # ── Splitter: previews (top, resizable) | plots (bottom, resizable) ──
+        # Only these two sections are resizable. Controls above are fixed.
+        self.main_splitter = QSplitter(Qt.Vertical)
+        self.main_splitter.setHandleWidth(8)
+
+        # Previews row
         previews_widget = QWidget()
         previews_layout = QHBoxLayout(previews_widget)
         previews_layout.setContentsMargins(0, 0, 0, 0)
-        previews_layout.setSpacing(4)
+        previews_layout.setSpacing(3)
         self.viewer_original = ImageViewer("Original")
         self.viewer_live = ImageViewer("Live Sliders")
         self.viewer_profile = ImageViewer("Profile")
         for v in (self.viewer_original, self.viewer_live, self.viewer_profile):
             previews_layout.addWidget(v, 1)
-        main_splitter.addWidget(previews_widget)
+        self.main_splitter.addWidget(previews_widget)
 
-        # ── Row 1: adjustments (4 groups in a row) ──
-        self.adjustments = AdjustmentsPanel()
-        main_splitter.addWidget(self.adjustments)
-
-        # ── Row 2: LUT + Profiles + Batch (one row) ──
-        controls2 = QWidget()
-        controls2_layout = QHBoxLayout(controls2)
-        controls2_layout.setContentsMargins(0, 0, 0, 0)
-        controls2_layout.setSpacing(6)
-        self.lut_panel = LutPanel()
-        controls2_layout.addWidget(self.lut_panel, 1)
-        self.profiles_panel = ProfilesPanel()
-        controls2_layout.addWidget(self.profiles_panel, 1)
-        self.batch_panel = BatchPanel()
-        controls2_layout.addWidget(self.batch_panel, 1)
-        main_splitter.addWidget(controls2)
-
-        # ── Row: stats + plots ──
+        # Plots panel
         self.plots_panel = PlotsPanel()
-        main_splitter.addWidget(self.plots_panel)
+        self.main_splitter.addWidget(self.plots_panel)
 
-        # Stretch factors: previews get the most, controls are compact
-        main_splitter.setStretchFactor(0, 4)   # previews
-        main_splitter.setStretchFactor(1, 2)   # adjustments
-        main_splitter.setStretchFactor(2, 2)   # LUT/Profiles/Batch
-        main_splitter.setStretchFactor(3, 5)   # plots
-        # Initial sizes
-        main_splitter.setSizes([320, 170, 150, 360])
+        # Only previews and plots stretch; both resizable via the splitter handle
+        self.main_splitter.setStretchFactor(0, 3)
+        self.main_splitter.setStretchFactor(1, 4)
+        self.main_splitter.setSizes([300, 400])
 
-        root.addWidget(main_splitter, 1)
-
-        self._main_splitter = main_splitter
+        root.addWidget(self.main_splitter, 1)
 
         # ── Status bar ──
         self.statusBar().showMessage(f"Device: {DEVICE}")

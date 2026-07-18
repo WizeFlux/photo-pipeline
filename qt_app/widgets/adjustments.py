@@ -21,15 +21,7 @@ from qt_app.state import PARAM_DEFAULTS, list_luts
 # ─── Compact slider ──────────────────────────────────────────────────────────
 
 _COMPACT_QSS = """
-QLabel { font-size: 10px; }
-QSlider::groove:horizontal { height: 3px; background: #3a3a3a; border-radius: 1px; }
-QSlider::handle:horizontal {
-    background: #00d4aa; width: 10px; height: 10px;
-    margin: -4px 0; border-radius: 5px;
-}
-QSlider::handle:horizontal:hover { background: #00f0c0; }
-QSlider::sub-page:horizontal { background: #00705a; border-radius: 1px; }
-QGroupBox { font-size: 11px; }
+QGroupBox { margin-top: 11px; padding: 10px 6px 6px 6px; }
 """
 
 

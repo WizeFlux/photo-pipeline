@@ -4,7 +4,7 @@ DARK_QSS = """
 QWidget {
     background-color: #1e1e1e;
     color: #e0e0e0;
-    font-size: 13px;
+    font-size: 10px;
     font-family: -apple-system, "Helvetica Neue", "Segoe UI", "Roboto", sans-serif;
 }
 
@@ -15,47 +15,47 @@ QMainWindow, QDialog {
 /* ─── Group boxes ─────────────────────────────────────────────── */
 QGroupBox {
     border: 1px solid #3a3a3a;
-    border-radius: 6px;
-    margin-top: 14px;
-    padding: 14px 10px 10px 10px;
+    border-radius: 4px;
+    margin-top: 11px;
+    padding: 10px 6px 6px 6px;
     font-weight: 600;
     color: #b0b0b0;
 }
 QGroupBox::title {
     subcontrol-origin: margin;
     subcontrol-position: top left;
-    left: 10px;
-    padding: 0 6px;
+    left: 8px;
+    padding: 0 4px;
     color: #00d4aa;
 }
 
 /* ─── Sliders ─────────────────────────────────────────────────── */
 QSlider::groove:horizontal {
-    height: 4px;
+    height: 3px;
     background: #3a3a3a;
-    border-radius: 2px;
+    border-radius: 1px;
 }
 QSlider::handle:horizontal {
     background: #00d4aa;
-    width: 14px;
-    height: 14px;
-    margin: -6px 0;
-    border-radius: 7px;
+    width: 10px;
+    height: 10px;
+    margin: -4px 0;
+    border-radius: 5px;
 }
 QSlider::handle:horizontal:hover {
     background: #00f0c0;
 }
 QSlider::sub-page:horizontal {
     background: #00705a;
-    border-radius: 2px;
+    border-radius: 1px;
 }
 
 /* ─── Buttons ─────────────────────────────────────────────────── */
 QPushButton {
     background-color: #2d2d2d;
     border: 1px solid #3a3a3a;
-    border-radius: 4px;
-    padding: 6px 16px;
+    border-radius: 3px;
+    padding: 3px 10px;
     color: #e0e0e0;
 }
 QPushButton:hover {
@@ -80,8 +80,8 @@ QPushButton#primary:hover {
 QLineEdit, QSpinBox, QComboBox {
     background-color: #2d2d2d;
     border: 1px solid #3a3a3a;
-    border-radius: 4px;
-    padding: 5px 8px;
+    border-radius: 3px;
+    padding: 2px 6px;
     color: #e0e0e0;
 }
 QLineEdit:focus, QSpinBox:focus, QComboBox:focus {
@@ -89,13 +89,40 @@ QLineEdit:focus, QSpinBox:focus, QComboBox:focus {
 }
 QComboBox::drop-down {
     border: none;
-    width: 22px;
+    width: 18px;
 }
 QComboBox QAbstractItemView {
     background-color: #2d2d2d;
     border: 1px solid #3a3a3a;
     selection-background-color: #00d4aa;
     selection-color: #1e1e1e;
+}
+
+/* ─── Splitter handles (visible, grabbable) ───────────────────── */
+QSplitter::handle:horizontal {
+    background: #2a2a2a;
+    width: 6px;
+    margin: 2px 1px;
+    border-radius: 2px;
+}
+QSplitter::handle:horizontal:hover {
+    background: #00d4aa;
+}
+QSplitter::handle:vertical {
+    background: #2a2a2a;
+    height: 8px;
+    margin: 1px 2px;
+    border-radius: 2px;
+}
+QSplitter::handle:vertical:hover {
+    background: #00d4aa;
+}
+/* Grip dots on vertical handles for discoverability */
+QSplitter::handle:vertical {
+    image: none;
+}
+QSplitter::handle:vertical:pressed {
+    background: #00f0c0;
 }
 
 /* ─── Scroll bars (kept subtle — shown only when a widget truly overflows) ── */
@@ -142,13 +169,13 @@ QStatusBar {
 /* ─── Labels ──────────────────────────────────────────────────── */
 QLabel#section-title {
     color: #00d4aa;
-    font-size: 14px;
+    font-size: 11px;
     font-weight: 600;
-    padding: 4px 0;
+    padding: 2px 0;
 }
 QLabel#value-label {
     color: #888;
-    font-size: 11px;
+    font-size: 10px;
 }
 """
 
