@@ -10,13 +10,16 @@ git clone https://github.com/WizeFlux/photo-pipeline.git
 cd photo-pipeline
 ./setup.sh
 
-# Process a folder of images
+# GUI (recommended) — opens in browser at localhost:8501
+streamlit run app.py
+
+# CLI — batch process a folder
 python -m pipeline process ./input -o ./output -p profiles/cinematic.yaml
 
-# Preview a single image (before/after)
+# CLI — preview a single image (before/after)
 python -m pipeline preview ./input/photo.tiff -p profiles/cinematic.yaml
 
-# Analyze images (brightness, color temp, dimensions)
+# CLI — analyze images (brightness, color temp, dimensions)
 python -m pipeline analyze ./input
 ```
 
