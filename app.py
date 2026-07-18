@@ -37,6 +37,8 @@ PROFILES_DIR = Path("profiles")
 
 if "uploaded_file" not in st.session_state:
     st.session_state.uploaded_file = None
+if "active_section" not in st.session_state:
+    st.session_state.active_section = "Exposure"
 
 
 # ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -183,6 +185,22 @@ def slider_with_reset(label, key, min_val, max_val, default, step, fmt=None):
                   help=f"Reset to {default}")
 
 
+# ─── Accordion helper ────────────────────────────────────────────────────────
+
+def accordion_header(label, section_key, icon=""):
+    """Render a button that acts as accordion header. Only one section open at a time."""
+    is_active = st.session_state.active_section == section_key
+    full_label = f"{icon} {label}" if icon else label
+    if sb.button(full_label, key=f"acc_{section_key}", use_container_width=True,
+                 type="primary" if is_active else "secondary"):
+        if is_active:
+            st.session_state.active_section = None
+        else:
+            st.session_state.active_section = section_key
+        st.rerun()
+    return is_active
+
+
 # ─── LUT files ───────────────────────────────────────────────────────────────
 
 lut_dir = Path("luts")
@@ -190,104 +208,129 @@ lut_files = ["None"] + [str(f) for f in lut_dir.glob("*.cube")] if lut_dir.exist
 
 
 # ═════════════════════════════════════════════════════════════════════════════
-# SIDEBAR — ALL CONTROLS
+# SIDEBAR — ALL CONTROLS (accordion)
 # ═════════════════════════════════════════════════════════════════════════════
 
 profiles_list = list_profiles()
 
-# ─── File Upload ─────────────────────────────────────────────────────────────
+# ─── File Upload (always visible) ────────────────────────────────────────────
 
 sb.markdown("### 📁 Image")
 uploaded = sb.file_uploader(
     "Upload image", type=["tiff", "tif", "jpg", "jpeg", "png", "webp"],
-    help="Drag and drop an image", label_visibility="collapsed",
+    label_visibility="collapsed",
 )
 if uploaded:
     st.session_state.uploaded_file = uploaded.getvalue()
 
 sb.divider()
 
-# ─── Profile Management ──────────────────────────────────────────────────────
+# ─── Profile Management (accordion) ──────────────────────────────────────────
 
-sb.markdown("### 📋 Profiles")
-
-sb.markdown("**Load → Sliders**")
-if profiles_list:
-    load_choice = sb.selectbox("Select profile", profiles_list,
-                               key="load_profile_select", index=0, label_visibility="collapsed")
-    if sb.button("⬆️ Apply to Sliders", key="apply_profile_btn", use_container_width=True):
-        apply_profile_to_state(load_choice)
-        st.rerun()
-else:
-    sb.caption("No profiles yet.")
-
-sb.markdown("**Save Current → Profile**")
-save_name = sb.text_input("Profile name", placeholder="my_look",
-                          key="save_profile_name", label_visibility="collapsed")
-if sb.button("💾 Save Profile", key="save_profile_btn", use_container_width=True):
-    if save_name.strip():
-        params = build_params_from_ui()
-        output_cfg = {
-            "format": st.session_state.output_format,
-            "quality": st.session_state.output_quality,
-            "width": st.session_state.output_width if st.session_state.output_width > 0 else None,
-        }
-        saved_path = save_profile(save_name.strip(), params, output_cfg)
-        sb.success(f"Saved: `{saved_path.name}`")
-        st.rerun()
+if accordion_header("Profiles", "profiles", "📋"):
+    sb.markdown("**Load → Sliders**")
+    if profiles_list:
+        load_choice = sb.selectbox("Select profile", profiles_list,
+                                   key="load_profile_select", index=0, label_visibility="collapsed")
+        if sb.button("⬆️ Apply to Sliders", key="apply_profile_btn", use_container_width=True):
+            apply_profile_to_state(load_choice)
+            st.rerun()
     else:
-        sb.error("Enter a name")
+        sb.caption("No profiles yet.")
 
-if profiles_list:
-    sb.markdown("**Delete**")
-    del_choice = sb.selectbox("Profile to delete", profiles_list,
-                              key="del_profile_select", index=0, label_visibility="collapsed")
-    if sb.button("🗑️ Delete", key="del_profile_btn", use_container_width=True):
-        (PROFILES_DIR / del_choice).unlink()
-        sb.success(f"Deleted: `{del_choice}`")
-        st.rerun()
+    sb.markdown("**Save Current → Profile**")
+    save_name = sb.text_input("Profile name", placeholder="my_look",
+                              key="save_profile_name", label_visibility="collapsed")
+    if sb.button("💾 Save Profile", key="save_profile_btn", use_container_width=True):
+        if save_name.strip():
+            params = build_params_from_ui()
+            output_cfg = {
+                "format": st.session_state.output_format,
+                "quality": st.session_state.output_quality,
+                "width": st.session_state.output_width if st.session_state.output_width > 0 else None,
+            }
+            saved_path = save_profile(save_name.strip(), params, output_cfg)
+            sb.success(f"Saved: `{saved_path.name}`")
+            st.rerun()
+        else:
+            sb.error("Enter a name")
+
+    if profiles_list:
+        sb.markdown("**Delete**")
+        del_choice = sb.selectbox("Profile to delete", profiles_list,
+                                  key="del_profile_select", index=0, label_visibility="collapsed")
+        if sb.button("🗑️ Delete", key="del_profile_btn", use_container_width=True):
+            (PROFILES_DIR / del_choice).unlink()
+            sb.success(f"Deleted: `{del_choice}`")
+            st.rerun()
 
 sb.divider()
 
-# ─── 3rd Preview Profile ─────────────────────────────────────────────────────
+# ─── 3rd Preview (accordion) ─────────────────────────────────────────────────
 
-sb.markdown("### 🖼️ 3rd Preview")
-if profiles_list:
-    third_profile = sb.selectbox(
-        "Profile for 3rd preview", profiles_list,
-        key="third_profile_select", index=0, label_visibility="collapsed",
-    )
+if accordion_header("3rd Preview", "third_preview", "🖼️"):
+    if profiles_list:
+        third_profile = sb.selectbox(
+            "Profile for 3rd preview", profiles_list,
+            key="third_profile_select", index=0, label_visibility="collapsed",
+        )
+    else:
+        third_profile = None
+        sb.caption("Save a profile to enable")
 else:
-    third_profile = None
-    sb.caption("Save a profile to enable")
+    # Still need to read the selectbox value if it was set before
+    third_profile = st.session_state.get("third_profile_select", None) if profiles_list else None
 
 sb.divider()
 
-# ─── Adjustments ─────────────────────────────────────────────────────────────
+# ─── Adjustments (accordion — one section at a time) ─────────────────────────
 
 sb.markdown("### 🎚️ Adjustments")
 
-with sb.expander("☀️ Exposure", expanded=True):
+adjustment_sections = [
+    ("Exposure", "☀️"),
+    ("Contrast", "📊"),
+    ("White Balance", "🌡️"),
+    ("Saturation", "🎨"),
+    ("LUT", "🎭"),
+]
+
+# Render all headers
+for section_name, icon in adjustment_sections:
+    is_active = st.session_state.active_section == section_name
+    label = f"{icon} {section_name}"
+    if sb.button(label, key=f"adj_{section_name}", use_container_width=True,
+                 type="primary" if is_active else "secondary"):
+        if is_active:
+            st.session_state.active_section = None
+        else:
+            st.session_state.active_section = section_name
+        st.rerun()
+
+# Render only the active section's content
+active = st.session_state.active_section
+
+if active == "Exposure":
     slider_with_reset("Exposure (EV)", "ev", -3.0, 3.0, 0.0, 0.01, "%.2f")
     slider_with_reset("Gamma", "gamma", 0.5, 2.5, 1.0, 0.01, "%.2f")
     slider_with_reset("Highlights", "highlights", -100, 100, 0, 1)
     slider_with_reset("Shadows", "shadows", -100, 100, 0, 1)
 
-with sb.expander("📊 Contrast", expanded=True):
+elif active == "Contrast":
     slider_with_reset("Amount", "contrast_amount", -100, 100, 0, 1)
     slider_with_reset("S-Curve", "s_curve", 0, 100, 0, 1)
     slider_with_reset("Black Point", "black_point", 0, 50, 0, 1)
     slider_with_reset("White Point", "white_point", 205, 255, 255, 1)
 
-with sb.expander("🌡️ White Balance", expanded=False):
+elif active == "White Balance":
     slider_with_reset("Temperature", "temperature", -100, 100, 0, 1)
     slider_with_reset("Tint", "tint", -100, 100, 0, 1)
 
-with sb.expander("🎨 Saturation", expanded=False):
+elif active == "Saturation":
     slider_with_reset("Saturation", "saturation", -100, 100, 0, 1)
     slider_with_reset("Vibrance", "vibrance", -100, 100, 0, 1)
 
-with sb.expander("🎭 LUT", expanded=False):
+elif active == "LUT":
     sb.selectbox("LUT File", lut_files, key="lut_path", index=0, label_visibility="collapsed")
     slider_with_reset("LUT Intensity", "lut_intensity", 0.0, 1.0, 1.0, 0.01, "%.2f")
 
@@ -300,9 +343,9 @@ if sb.button("🔄 Reset All Sliders", use_container_width=True):
 
 sb.divider()
 
-# ─── Output ──────────────────────────────────────────────────────────────────
+# ─── Output (accordion) ──────────────────────────────────────────────────────
 
-with sb.expander("💾 Output", expanded=False):
+if accordion_header("Output", "output", "💾"):
     sb.selectbox("Format", ["jpeg", "webp", "avif", "tiff"],
                  key="output_format", index=0, label_visibility="collapsed")
     sb.slider("Quality", 1, 100, 90, key="output_quality")
@@ -311,9 +354,9 @@ with sb.expander("💾 Output", expanded=False):
 
 sb.divider()
 
-# ─── Batch Process ───────────────────────────────────────────────────────────
+# ─── Batch Process (accordion) ───────────────────────────────────────────────
 
-with sb.expander("📁 Batch Process", expanded=False):
+if accordion_header("Batch Process", "batch", "📁"):
     batch_input = sb.text_input("Input dir", value="", placeholder="/path/to/images",
                                 key="batch_input")
     batch_output = sb.text_input("Output dir", value="", placeholder="/path/to/output",
@@ -446,36 +489,31 @@ result = result_live
 # ─── Download ────────────────────────────────────────────────────────────────
 
 st.markdown("---")
-dl_col1, dl_col2 = st.columns([1, 3])
-with dl_col1:
-    fmt = st.session_state.output_format
-    quality = st.session_state.output_quality
-    ext = {"jpeg": "jpg", "webp": "webp", "avif": "avif", "tiff": "tiff"}[fmt]
-    pil_fmt = {"jpeg": "JPEG", "webp": "WEBP", "avif": "AVIF", "tiff": "TIFF"}[fmt]
+fmt = st.session_state.output_format
+quality = st.session_state.output_quality
+ext = {"jpeg": "jpg", "webp": "webp", "avif": "avif", "tiff": "tiff"}[fmt]
+pil_fmt = {"jpeg": "JPEG", "webp": "WEBP", "avif": "AVIF", "tiff": "TIFF"}[fmt]
 
-    full_result = process_single(img, params)
-    if st.session_state.output_width > 0:
-        ow, oh = full_result.size
-        new_h = int(oh * st.session_state.output_width / ow)
-        full_result = full_result.resize(
-            (st.session_state.output_width, new_h), Image.LANCZOS
-        )
-
-    buf = io.BytesIO()
-    save_kwargs = {"quality": quality} if pil_fmt in ("JPEG", "WEBP", "AVIF") else {}
-    if pil_fmt == "JPEG":
-        save_kwargs["subsampling"] = 0
-    full_result.save(buf, format=pil_fmt, **save_kwargs)
-
-    st.download_button(
-        f"⬇️ Download ({ext.upper()})",
-        data=buf.getvalue(),
-        file_name=f"processed.{ext}",
-        mime=f"image/{fmt}",
+full_result = process_single(img, params)
+if st.session_state.output_width > 0:
+    ow, oh = full_result.size
+    new_h = int(oh * st.session_state.output_width / ow)
+    full_result = full_result.resize(
+        (st.session_state.output_width, new_h), Image.LANCZOS
     )
 
-with dl_col2:
-    st.info("💡 Adjust sliders in the sidebar → preview updates in real-time.")
+buf = io.BytesIO()
+save_kwargs = {"quality": quality} if pil_fmt in ("JPEG", "WEBP", "AVIF") else {}
+if pil_fmt == "JPEG":
+    save_kwargs["subsampling"] = 0
+full_result.save(buf, format=pil_fmt, **save_kwargs)
+
+st.download_button(
+    f"⬇️ Download ({ext.upper()})",
+    data=buf.getvalue(),
+    file_name=f"processed.{ext}",
+    mime=f"image/{fmt}",
+)
 
 
 # ─── Image Statistics (collapsible) ──────────────────────────────────────────
@@ -488,24 +526,20 @@ def channel_stats(arr):
     r, g, b = arr[..., 0], arr[..., 1], arr[..., 2]
     lum = 0.299 * r + 0.587 * g + 0.114 * b
     return {
-        "brightness": lum.mean(), "brightness_std": lum.std(),
-        "brightness_min": lum.min(), "brightness_max": lum.max(),
-        "brightness_median": np.median(lum),
-        "r_mean": r.mean(), "r_std": r.std(),
-        "g_mean": g.mean(), "g_std": g.std(),
-        "b_mean": b.mean(), "b_std": b.std(),
-        "rb_ratio": r.mean() / max(b.mean(), 1),
-        "rg_ratio": r.mean() / max(g.mean(), 1),
-        "gb_ratio": g.mean() / max(b.mean(), 1),
-        "saturation_mean": np.std(arr, axis=-1).mean(),
-        "contrast_mean": lum.std(),
-        "shadow_pct": (lum < 50).sum() / lum.size * 100,
-        "midtone_pct": ((lum >= 50) & (lum < 200)).sum() / lum.size * 100,
-        "highlight_pct": (lum >= 200).sum() / lum.size * 100,
-        "clipped_shadows": (arr.min(axis=-1) < 3).sum() / arr.shape[0] / arr.shape[1] * 100,
-        "clipped_highlights": (arr.max(axis=-1) > 252).sum() / arr.shape[0] / arr.shape[1] * 100,
-        "dynamic_range": lum.max() - lum.min(),
-        "snr": lum.mean() / max(lum.std(), 1),
+        "B_mean": lum.mean(), "B_med": np.median(lum), "B_std": lum.std(),
+        "B_min": lum.min(), "B_max": lum.max(), "B_rng": lum.max() - lum.min(),
+        "R": r.mean(), "G": g.mean(), "Bl": b.mean(),
+        "R_sd": r.std(), "G_sd": g.std(), "Bl_sd": b.std(),
+        "R/B": r.mean() / max(b.mean(), 1),
+        "R/G": r.mean() / max(g.mean(), 1),
+        "G/B": g.mean() / max(b.mean(), 1),
+        "Sat": np.std(arr, axis=-1).mean(),
+        "SNR": lum.mean() / max(lum.std(), 1),
+        "Shd%": (lum < 50).sum() / lum.size * 100,
+        "Mid%": ((lum >= 50) & (lum < 200)).sum() / lum.size * 100,
+        "Hlt%": (lum >= 200).sum() / lum.size * 100,
+        "Clip_S": (arr.min(axis=-1) < 3).sum() / arr.shape[0] / arr.shape[1] * 100,
+        "Clip_H": (arr.max(axis=-1) > 252).sum() / arr.shape[0] / arr.shape[1] * 100,
     }
 
 
@@ -516,49 +550,26 @@ profile_stats = None
 if result_profile is not None:
     profile_stats = channel_stats(np.array(result_profile, dtype=np.float64))
 
-stat_rows = [
-    ("Brightness (mean)", ".1f", "brightness"),
-    ("Brightness (median)", ".1f", "brightness_median"),
-    ("Brightness (std)", ".1f", "brightness_std"),
-    ("Brightness (min)", ".1f", "brightness_min"),
-    ("Brightness (max)", ".1f", "brightness_max"),
-    ("Brightness (range)", ".1f", "dynamic_range"),
-    ("Contrast (lum std)", ".1f", "contrast_mean"),
-    ("R mean", ".1f", "r_mean"),
-    ("G mean", ".1f", "g_mean"),
-    ("B mean", ".1f", "b_mean"),
-    ("R std", ".1f", "r_std"),
-    ("G std", ".1f", "g_std"),
-    ("B std", ".1f", "b_std"),
-    ("R/B ratio", ".3f", "rb_ratio"),
-    ("R/G ratio", ".3f", "rg_ratio"),
-    ("G/B ratio", ".3f", "gb_ratio"),
-    ("Saturation (mean)", ".1f", "saturation_mean"),
-    ("SNR (mean/std)", ".2f", "snr"),
-    ("Shadows <50 (%)", ".1f", "shadow_pct"),
-    ("Midtones 50-200 (%)", ".1f", "midtone_pct"),
-    ("Highlights ≥200 (%)", ".1f", "highlight_pct"),
-    ("Clipped shadows (%)", ".2f", "clipped_shadows"),
-    ("Clipped highlights (%)", ".2f", "clipped_highlights"),
-]
-
 import pandas as pd
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
 
 def build_stats_df():
-    rows = []
-    for label, fmt, key in stat_rows:
+    """Transposed table: rows = sources (Original/Live/Profile), columns = metrics."""
+    data = {}
+    for key in orig_stats:
         row = {
-            "Metric": label,
-            "Original": format(orig_stats[key], fmt),
-            "Live": format(proc_stats[key], fmt),
+            "Original": orig_stats[key],
+            "Live": proc_stats[key],
         }
         if profile_stats is not None:
-            row["Profile"] = format(profile_stats[key], fmt)
-        rows.append(row)
-    return pd.DataFrame(rows)
+            row["Profile"] = profile_stats[key]
+        data[key] = row
+
+    df = pd.DataFrame(data).T
+    df = df.T  # transpose: metrics as columns, sources as rows
+    return df.round(2)
 
 
 def plot_histogram(arr, title):
@@ -614,7 +625,7 @@ def compute_curve(ev, gamma, contrast, s_curve, bp, wp):
 
 # Collapsible stats sections in main area
 with st.expander("📊 Statistics Table", expanded=False):
-    st.dataframe(build_stats_df(), width='stretch', hide_index=True)
+    st.dataframe(build_stats_df(), width='stretch')
 
 with st.expander("📈 Histograms", expanded=False):
     if result_profile is not None:
@@ -632,28 +643,56 @@ with st.expander("📈 Histograms", expanded=False):
         with hc2:
             st.plotly_chart(plot_histogram(proc_arr, "After"), width='stretch')
 
-with st.expander("📊 Per-Channel Comparison", expanded=False):
-    fig2 = make_subplots(rows=1, cols=3, subplot_titles=("Red", "Green", "Blue"))
+with st.expander("📊 Channel Deltas (After − Original)", expanded=False):
+    """Show per-channel DIFFERENCE between after and before.
+    This directly visualizes what the correction does to each channel.
+    Positive = brightened, negative = darkened.
+    """
     bins = np.arange(0, 257, 1)
+    channels = [("Red", "#ff4444"), ("Green", "#44ff44"), ("Blue", "#4488ff")]
 
-    for i, (ch_name, color) in enumerate([("Red", "red"), ("Green", "green"), ("Blue", "blue")]):
+    fig2 = go.Figure()
+    for i, (ch_name, color) in enumerate(channels):
         orig_hist, _ = np.histogram(orig_arr[..., i], bins=bins)
         proc_hist, _ = np.histogram(proc_arr[..., i], bins=bins)
-        fig2.add_trace(go.Scatter(x=bins[:-1], y=orig_hist, name=f"{ch_name} before",
-                                  line=dict(color=color, width=1.5, dash="dot")),
-                       row=1, col=i+1)
-        fig2.add_trace(go.Scatter(x=bins[:-1], y=proc_hist, name=f"{ch_name} after",
-                                  line=dict(color=color, width=2)),
-                       row=1, col=i+1)
-        if result_profile is not None:
-            prof_hist, _ = np.histogram(np.array(result_profile, dtype=np.float64)[..., i], bins=bins)
-            fig2.add_trace(go.Scatter(x=bins[:-1], y=prof_hist, name=f"{ch_name} profile",
-                                      line=dict(color=color, width=1.5, dash="dashdot")),
-                           row=1, col=i+1)
+        delta = proc_hist.astype(np.float64) - orig_hist.astype(np.float64)
+        fig2.add_trace(go.Scatter(
+            x=bins[:-1], y=delta, name=ch_name,
+            line=dict(color=color, width=2),
+            fill="tozeroy", fillcolor=color.replace("#", "rgba(") + ",0.2)",
+        ))
 
-    fig2.update_layout(height=280, margin=dict(l=40, r=20, t=50, b=40),
-                       template="plotly_dark", showlegend=False)
+    fig2.update_layout(
+        title="Per-Channel Delta: Live − Original",
+        xaxis_title="Value (0–255)", yaxis_title="Δ Pixel count",
+        height=320, margin=dict(l=40, r=20, t=50, b=40),
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+        template="plotly_dark",
+        hovermode="x unified",
+    )
     st.plotly_chart(fig2, width='stretch')
+
+    # Also show profile delta if available
+    if result_profile is not None:
+        st.markdown("**Profile − Original:**")
+        fig2b = go.Figure()
+        for i, (ch_name, color) in enumerate(channels):
+            orig_hist, _ = np.histogram(orig_arr[..., i], bins=bins)
+            prof_hist, _ = np.histogram(np.array(result_profile, dtype=np.float64)[..., i], bins=bins)
+            delta = prof_hist.astype(np.float64) - orig_hist.astype(np.float64)
+            fig2b.add_trace(go.Scatter(
+                x=bins[:-1], y=delta, name=ch_name,
+                line=dict(color=color, width=2),
+                fill="tozeroy", fillcolor=color.replace("#", "rgba(") + ",0.2)",
+            ))
+        fig2b.update_layout(
+            xaxis_title="Value (0–255)", yaxis_title="Δ Pixel count",
+            height=320, margin=dict(l=40, r=20, t=30, b=40),
+            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+            template="plotly_dark",
+            hovermode="x unified",
+        )
+        st.plotly_chart(fig2b, width='stretch')
 
 with st.expander("📈 Tone Curve (Input → Output)", expanded=False):
     x, y_live = compute_curve(
