@@ -204,21 +204,16 @@ class MainWindow(QMainWindow):
             self.viewer_profile.set_title("Profile")
 
     def _sync_viewers(self) -> None:
-        """Connect zoom/pan signals so all viewers stay in sync."""
+        """Connect zoom/pan signals so all viewers stay in sync.
+
+        Called once during UI construction. No disconnect needed since
+        this is the first (and only) time these signals are connected.
+        """
         viewers = [self.viewer_original, self.viewer_live, self.viewer_profile]
         for src in viewers:
             for dst in viewers:
                 if src is dst:
                     continue
-                # Disconnect first to avoid duplicates when called again
-                try:
-                    src.zoomChanged.disconnect(dst.set_zoom)
-                except (TypeError, RuntimeError):
-                    pass
-                try:
-                    src.panChanged.disconnect(dst.set_pan)
-                except (TypeError, RuntimeError):
-                    pass
                 src.zoomChanged.connect(dst.set_zoom)
                 src.panChanged.connect(dst.set_pan)
 
