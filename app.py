@@ -204,118 +204,128 @@ lut_files = ["None"] + [str(f) for f in lut_dir.glob("*.cube")] if lut_dir.exist
 
 
 # ═════════════════════════════════════════════════════════════════════════════
-# SIDEBAR — ALL CONTROLS
+# SIDEBAR — ALL CONTROLS (flat layout with dividers)
 # ═════════════════════════════════════════════════════════════════════════════
 
 # ─── File Upload ─────────────────────────────────────────────────────────────
 
-with sb.expander("📁 Image", expanded=True):
-    uploaded = sb.file_uploader(
-        "Upload image",
-        type=["tiff", "tif", "jpg", "jpeg", "png", "webp"],
-        help="Drag and drop an image",
-    )
-    if uploaded:
-        st.session_state.uploaded_file = uploaded.getvalue()
+sb.markdown("### 📁 Image")
+uploaded = sb.file_uploader(
+    "Upload image",
+    type=["tiff", "tif", "jpg", "jpeg", "png", "webp"],
+    help="Drag and drop an image",
+)
+if uploaded:
+    st.session_state.uploaded_file = uploaded.getvalue()
+
+sb.divider()
 
 # ─── Profile Management ──────────────────────────────────────────────────────
 
 profiles_list = list_profiles()
 
-with sb.expander("📋 Profiles", expanded=False):
-    # Load
-    sb.markdown("**Load → Sliders**")
-    if profiles_list:
-        load_choice = sb.selectbox("Select profile", profiles_list,
-                                   key="load_profile_select", index=0, label_visibility="collapsed")
-        if sb.button("⬆️ Apply to Sliders", key="apply_profile_btn", use_container_width=True):
-            apply_profile_to_state(load_choice)
-            st.rerun()
+sb.markdown("### 📋 Profiles")
+
+# Load
+sb.markdown("**Load → Sliders**")
+if profiles_list:
+    load_choice = sb.selectbox("Select profile", profiles_list,
+                               key="load_profile_select", index=0, label_visibility="collapsed")
+    if sb.button("⬆️ Apply to Sliders", key="apply_profile_btn", use_container_width=True):
+        apply_profile_to_state(load_choice)
+        st.rerun()
+else:
+    sb.caption("No profiles yet. Save one below.")
+
+# Save
+sb.markdown("**Save Current → Profile**")
+save_name = sb.text_input("Profile name", placeholder="my_look",
+                          key="save_profile_name", label_visibility="collapsed")
+if sb.button("💾 Save Profile", key="save_profile_btn", use_container_width=True):
+    if save_name.strip():
+        params = build_params_from_ui()
+        output_cfg = {
+            "format": st.session_state.output_format,
+            "quality": st.session_state.output_quality,
+            "width": st.session_state.output_width if st.session_state.output_width > 0 else None,
+        }
+        saved_path = save_profile(save_name.strip(), params, output_cfg)
+        sb.success(f"Saved: `{saved_path.name}`")
+        st.rerun()
     else:
-        sb.caption("No profiles yet. Save one below.")
+        sb.error("Enter a name")
 
-    # Save
-    sb.markdown("**Save Current → Profile**")
-    save_name = sb.text_input("Profile name", placeholder="my_look",
-                              key="save_profile_name", label_visibility="collapsed")
-    if sb.button("💾 Save Profile", key="save_profile_btn", use_container_width=True):
-        if save_name.strip():
-            params = build_params_from_ui()
-            output_cfg = {
-                "format": st.session_state.output_format,
-                "quality": st.session_state.output_quality,
-                "width": st.session_state.output_width if st.session_state.output_width > 0 else None,
-            }
-            saved_path = save_profile(save_name.strip(), params, output_cfg)
-            sb.success(f"Saved: `{saved_path.name}`")
-            st.rerun()
-        else:
-            sb.error("Enter a name")
+# Delete
+if profiles_list:
+    sb.markdown("**Delete**")
+    del_choice = sb.selectbox("Profile to delete", profiles_list,
+                              key="del_profile_select", index=0, label_visibility="collapsed")
+    if sb.button("🗑️ Delete", key="del_profile_btn", use_container_width=True):
+        (PROFILES_DIR / del_choice).unlink()
+        sb.success(f"Deleted: `{del_choice}`")
+        st.rerun()
 
-    # Delete
-    if profiles_list:
-        sb.markdown("**Delete**")
-        del_choice = sb.selectbox("Profile to delete", profiles_list,
-                                  key="del_profile_select", index=0, label_visibility="collapsed")
-        if sb.button("🗑️ Delete", key="del_profile_btn", use_container_width=True):
-            (PROFILES_DIR / del_choice).unlink()
-            sb.success(f"Deleted: `{del_choice}`")
-            st.rerun()
+sb.divider()
 
 # ─── 3rd Preview Profile ─────────────────────────────────────────────────────
 
-with sb.expander("🖼️ 3rd Preview", expanded=False):
-    if profiles_list:
-        third_profile = sb.selectbox(
-            "Profile for 3rd preview", profiles_list,
-            key="third_profile_select", index=0, label_visibility="collapsed",
-        )
-    else:
-        third_profile = None
-        sb.caption("Save a profile to enable")
+sb.markdown("### 🖼️ 3rd Preview")
+if profiles_list:
+    third_profile = sb.selectbox(
+        "Profile for 3rd preview", profiles_list,
+        key="third_profile_select", index=0, label_visibility="collapsed",
+    )
+else:
+    third_profile = None
+    sb.caption("Save a profile to enable")
+
+sb.divider()
 
 # ─── Adjustments ─────────────────────────────────────────────────────────────
 
-with sb.expander("🎚️ Adjustments", expanded=True):
-    sb.markdown("#### ☀️ Exposure")
-    slider_with_reset("Exposure (EV)", "ev", -3.0, 3.0, 0.0, 0.01, "%.2f")
-    slider_with_reset("Gamma", "gamma", 0.5, 2.5, 1.0, 0.01, "%.2f")
-    slider_with_reset("Highlights", "highlights", -100, 100, 0, 1)
-    slider_with_reset("Shadows", "shadows", -100, 100, 0, 1)
+sb.markdown("### 🎚️ Adjustments")
 
-    sb.markdown("#### 📊 Contrast")
-    slider_with_reset("Amount", "contrast_amount", -100, 100, 0, 1)
-    slider_with_reset("S-Curve", "s_curve", 0, 100, 0, 1)
-    slider_with_reset("Black Point", "black_point", 0, 50, 0, 1)
-    slider_with_reset("White Point", "white_point", 205, 255, 255, 1)
+sb.markdown("#### ☀️ Exposure")
+slider_with_reset("Exposure (EV)", "ev", -3.0, 3.0, 0.0, 0.01, "%.2f")
+slider_with_reset("Gamma", "gamma", 0.5, 2.5, 1.0, 0.01, "%.2f")
+slider_with_reset("Highlights", "highlights", -100, 100, 0, 1)
+slider_with_reset("Shadows", "shadows", -100, 100, 0, 1)
 
-    sb.markdown("#### 🌡️ White Balance")
-    slider_with_reset("Temperature", "temperature", -100, 100, 0, 1)
-    slider_with_reset("Tint", "tint", -100, 100, 0, 1)
+sb.markdown("#### 📊 Contrast")
+slider_with_reset("Amount", "contrast_amount", -100, 100, 0, 1)
+slider_with_reset("S-Curve", "s_curve", 0, 100, 0, 1)
+slider_with_reset("Black Point", "black_point", 0, 50, 0, 1)
+slider_with_reset("White Point", "white_point", 205, 255, 255, 1)
 
-    sb.markdown("#### 🎨 Saturation")
-    slider_with_reset("Saturation", "saturation", -100, 100, 0, 1)
-    slider_with_reset("Vibrance", "vibrance", -100, 100, 0, 1)
+sb.markdown("#### 🌡️ White Balance")
+slider_with_reset("Temperature", "temperature", -100, 100, 0, 1)
+slider_with_reset("Tint", "tint", -100, 100, 0, 1)
 
-    sb.markdown("#### 🎭 LUT")
-    sb.selectbox("LUT File", lut_files, key="lut_path", index=0, label_visibility="collapsed")
-    slider_with_reset("LUT Intensity", "lut_intensity", 0.0, 1.0, 1.0, 0.01, "%.2f")
+sb.markdown("#### 🎨 Saturation")
+slider_with_reset("Saturation", "saturation", -100, 100, 0, 1)
+slider_with_reset("Vibrance", "vibrance", -100, 100, 0, 1)
 
-    sb.markdown("---")
-    if sb.button("🔄 Reset All Sliders", use_container_width=True):
-        for k in DEFAULTS:
-            st.session_state[k] = DEFAULTS[k]
-        st.session_state.lut_path = "None"
-        st.rerun()
+sb.markdown("#### 🎭 LUT")
+sb.selectbox("LUT File", lut_files, key="lut_path", index=0, label_visibility="collapsed")
+slider_with_reset("LUT Intensity", "lut_intensity", 0.0, 1.0, 1.0, 0.01, "%.2f")
+
+sb.markdown("---")
+if sb.button("🔄 Reset All Sliders", use_container_width=True):
+    for k in DEFAULTS:
+        st.session_state[k] = DEFAULTS[k]
+    st.session_state.lut_path = "None"
+    st.rerun()
+
+sb.divider()
 
 # ─── Output ──────────────────────────────────────────────────────────────────
 
-with sb.expander("💾 Output", expanded=False):
-    sb.selectbox("Format", ["jpeg", "webp", "avif", "tiff"],
-                 key="output_format", index=0, label_visibility="collapsed")
-    sb.slider("Quality", 1, 100, 90, key="output_quality")
-    sb.number_input("Width (px)", value=0, step=100,
-                    help="0 = original size", key="output_width")
+sb.markdown("### 💾 Output")
+sb.selectbox("Format", ["jpeg", "webp", "avif", "tiff"],
+             key="output_format", index=0, label_visibility="collapsed")
+sb.slider("Quality", 1, 100, 90, key="output_quality")
+sb.number_input("Width (px)", value=0, step=100,
+                help="0 = original size", key="output_width")
 
 
 # ═════════════════════════════════════════════════════════════════════════════
