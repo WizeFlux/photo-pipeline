@@ -25,7 +25,6 @@ from qt_app.state import curve_from_params
 _BG = "#1e1e1e"
 _PANEL = "#232323"
 _GRID = "#2a2a2a"
-_GRID_MINOR = "#252525"
 _TEXT = "#b0b0b0"
 _MUTED = "#666666"
 
@@ -58,12 +57,7 @@ def _style_axes(ax, title: str = "") -> None:
     for spine in ax.spines.values():
         spine.set_color(_GRID)
         spine.set_linewidth(0.5)
-    # Denser grid: major + minor lines, both above and below the plot
-    ax.set_axisbelow(False)  # draw grid on top of fills/curves
-    ax.minorticks_on()
-    ax.grid(True, which="major", color=_GRID, linewidth=0.5, alpha=0.5, zorder=5)
-    ax.grid(True, which="minor", color=_GRID_MINOR, linewidth=0.3, alpha=0.4, zorder=5)
-    ax.tick_params(which="minor", length=0)
+    ax.grid(True, color=_GRID, linewidth=0.5, alpha=0.6)
 
 
 def _draw_histograms_on_ax(ax, arr: np.ndarray) -> None:
