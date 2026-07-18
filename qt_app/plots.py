@@ -1,12 +1,15 @@
-"""Matplotlib figure builders for the analysis plots.
+"""Matplotlib render functions for the analysis plots.
 
-Three figures, all dark-themed to match the app:
-  • histograms_row  — 2 or 3 RGB+luminance histograms side by side
-  • channel_deltas  — per-channel histogram diffs (After − Original)
-  • tone_curve      — identity / live / profile curves
+Each function draws onto an *existing* Figure (cleared first) rather than
+creating a new one. This is the safe pattern for embedding matplotlib in Qt:
+a single Figure lives for the lifetime of the canvas, and we only clear+redraw
+its contents — no Figure object swapping, which can segfault when Python GC
+collects the old figure while Qt still references it during draw.
 
-All functions return a `matplotlib.figure.Figure` ready to be embedded
-via `FigureCanvasQTAgg`.
+Three plots, all dark-themed:
+  • draw_histograms_row  — 2 or 3 RGB+luminance histograms side by side
+  • draw_channel_deltas  — per-channel histogram diffs (After − Original)
+  • draw_tone_curve      — identity / live / profile curves
 """
 
 from __future__ import annotations
@@ -38,11 +41,6 @@ _CHANNEL_FILLS = {
 }
 
 
-def _new_figure(width=7, height=2.6) -> Figure:
-    fig = Figure(figsize=(width, height), facecolor=_BG)
-    return fig
-
-
 def _style_axes(ax, title: str = "") -> None:
     ax.set_facecolor(_PANEL)
     ax.set_title(title, color=_TEXT, fontsize=10, pad=6)
@@ -54,7 +52,7 @@ def _style_axes(ax, title: str = "") -> None:
     ax.yaxis.label.set_color(_MUTED)
 
 
-def _add_histograms_to_ax(ax, arr: np.ndarray) -> None:
+def _draw_histograms_on_ax(ax, arr: np.ndarray) -> None:
     """Draw R/G/B/Lum histograms on a given axes."""
     arr = np.asarray(arr, dtype=np.float64)
     r, g, b = arr[..., 0], arr[..., 1], arr[..., 2]
@@ -68,44 +66,53 @@ def _add_histograms_to_ax(ax, arr: np.ndarray) -> None:
     ax.plot(bins[:-1], lh, color=_CHANNEL_COLORS["Lum"], linewidth=1.0, linestyle="--")
 
 
-# ─── Public figure builders ──────────────────────────────────────────────────
+def make_empty_figure(width=7, height=2.8) -> Figure:
+    """Create a dark-themed empty figure for a canvas."""
+    return Figure(figsize=(width, height), facecolor=_BG)
 
-def histograms_row(
+
+# ─── Public draw functions (mutate the given figure in place) ────────────────
+
+def draw_histograms_row(
+    fig: Figure,
     orig: np.ndarray,
     live: np.ndarray,
     profile: np.ndarray | None = None,
     profile_name: str | None = None,
-) -> Figure:
-    """2 or 3 histograms in a row."""
+) -> None:
+    """Draw 2 or 3 histograms onto `fig` (cleared first)."""
+    fig.clear()
+    fig.set_facecolor(_BG)
     n = 3 if profile is not None else 2
-    fig = _new_figure(height=2.8)
     titles = ["Original", "Live Sliders"]
+    arrays = [orig, live]
     if profile is not None:
         titles.append(profile_name or "Profile")
-    for i, (title, arr) in enumerate(
-        zip(titles, [orig, live] + ([profile] if profile is not None else []))
-    ):
+        arrays.append(profile)
+    for i, (title, arr) in enumerate(zip(titles, arrays)):
         ax = fig.add_subplot(1, n, i + 1)
         _style_axes(ax, title)
-        _add_histograms_to_ax(ax, arr)
+        _draw_histograms_on_ax(ax, arr)
         ax.set_xlabel("Value (0–255)")
         if i == 0:
             ax.set_ylabel("Pixel count")
     fig.tight_layout(pad=0.8)
-    return fig
 
 
-def channel_deltas(
+def draw_channel_deltas(
+    fig: Figure,
     orig: np.ndarray,
     live: np.ndarray,
     profile: np.ndarray | None = None,
     profile_name: str | None = None,
-) -> Figure:
-    """Per-channel histogram deltas: After − Original."""
+) -> None:
+    """Draw per-channel histogram deltas onto `fig` (cleared first)."""
+    fig.clear()
+    fig.set_facecolor(_BG)
     orig_arr = np.asarray(orig, dtype=np.float64)
     bins = np.arange(0, 257, 1)
 
-    def _add_deltas(ax, after_arr, title):
+    def _draw_deltas(ax, after_arr, title):
         after_arr = np.asarray(after_arr, dtype=np.float64)
         for i, name in enumerate(["R", "G", "B"]):
             o_h, _ = np.histogram(orig_arr[..., i], bins=bins)
@@ -119,28 +126,28 @@ def channel_deltas(
                   labelcolor=_TEXT)
 
     n = 2 if profile is not None else 1
-    fig = _new_figure(height=2.8)
     ax1 = fig.add_subplot(1, n, 1)
     _style_axes(ax1, "Live − Original")
-    _add_deltas(ax1, live, "Live − Original")
+    _draw_deltas(ax1, live, "Live − Original")
     ax1.set_xlabel("Value")
     ax1.set_ylabel("Δ pixel count")
     if profile is not None:
         ax2 = fig.add_subplot(1, n, 2)
         _style_axes(ax2, f"{profile_name} − Original")
-        _add_deltas(ax2, profile, f"{profile_name} − Original")
+        _draw_deltas(ax2, profile, f"{profile_name} − Original")
         ax2.set_xlabel("Value")
     fig.tight_layout(pad=0.8)
-    return fig
 
 
-def tone_curve(
+def draw_tone_curve(
+    fig: Figure,
     params: dict,
     third_params: dict | None = None,
     profile_name: str | None = None,
-) -> Figure:
-    """Identity + live (+ profile) tone curves."""
-    fig = _new_figure(height=2.8)
+) -> None:
+    """Draw identity + live (+ profile) tone curves onto `fig` (cleared first)."""
+    fig.clear()
+    fig.set_facecolor(_BG)
     ax = fig.add_subplot(1, 1, 1)
     _style_axes(ax, "Tone Curve")
 
@@ -153,7 +160,7 @@ def tone_curve(
     if third_params is not None:
         _, y_prof = curve_from_params(third_params)
         ax.plot(x, y_prof, color="#ff9900", linewidth=2.0, linestyle="--",
-                label=f"{profile_name}" if profile_name else "Profile")
+                label=profile_name if profile_name else "Profile")
 
     ax.set_xlabel("Input")
     ax.set_ylabel("Output")
@@ -161,4 +168,3 @@ def tone_curve(
     ax.set_ylim(0, 255)
     ax.legend(loc="upper left", framealpha=0.3, fontsize=8, labelcolor=_TEXT)
     fig.tight_layout(pad=0.8)
-    return fig
