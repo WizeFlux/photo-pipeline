@@ -268,15 +268,30 @@ third_profile = st.session_state.get("third_profile_select", None) if profiles_l
 # ─── Adjustments (accordion — one section at a time) ─────────────────────────
 
 adjustment_sections = [
-    ("Exposure", "☀️"),
-    ("Contrast", "📊"),
-    ("White Balance", "🌡️"),
-    ("Saturation", "🎨"),
-    ("LUT", "🎭"),
+    ("Exposure", "☀️", [
+        ("Exposure (EV)", "ev", -3.0, 3.0, 0.0, 0.01, "%.2f"),
+        ("Gamma", "gamma", 0.5, 2.5, 1.0, 0.01, "%.2f"),
+        ("Highlights", "highlights", -100, 100, 0, 1, None),
+        ("Shadows", "shadows", -100, 100, 0, 1, None),
+    ]),
+    ("Contrast", "📊", [
+        ("Amount", "contrast_amount", -100, 100, 0, 1, None),
+        ("S-Curve", "s_curve", 0, 100, 0, 1, None),
+        ("Black Point", "black_point", 0, 50, 0, 1, None),
+        ("White Point", "white_point", 205, 255, 255, 1, None),
+    ]),
+    ("White Balance", "🌡️", [
+        ("Temperature", "temperature", -100, 100, 0, 1, None),
+        ("Tint", "tint", -100, 100, 0, 1, None),
+    ]),
+    ("Saturation", "🎨", [
+        ("Saturation", "saturation", -100, 100, 0, 1, None),
+        ("Vibrance", "vibrance", -100, 100, 0, 1, None),
+    ]),
 ]
 
-# Render all headers
-for section_name, icon in adjustment_sections:
+# Render each section: header button immediately followed by content if active
+for section_name, icon, sliders in adjustment_sections:
     is_active = st.session_state.active_section == section_name
     label = f"{icon} {section_name}"
     if sb.button(label, key=f"adj_{section_name}", use_container_width=True,
@@ -287,30 +302,21 @@ for section_name, icon in adjustment_sections:
             st.session_state.active_section = section_name
         st.rerun()
 
-# Render only the active section's content
-active = st.session_state.active_section
+    if is_active:
+        for slider_args in sliders:
+            slider_with_reset(*slider_args)
 
-if active == "Exposure":
-    slider_with_reset("Exposure (EV)", "ev", -3.0, 3.0, 0.0, 0.01, "%.2f")
-    slider_with_reset("Gamma", "gamma", 0.5, 2.5, 1.0, 0.01, "%.2f")
-    slider_with_reset("Highlights", "highlights", -100, 100, 0, 1)
-    slider_with_reset("Shadows", "shadows", -100, 100, 0, 1)
+# LUT section (has selectbox + slider, so handled separately but same pattern)
+is_lut_active = st.session_state.active_section == "LUT"
+if sb.button("🎭 LUT", key="adj_LUT", use_container_width=True,
+             type="primary" if is_lut_active else "secondary"):
+    if is_lut_active:
+        st.session_state.active_section = None
+    else:
+        st.session_state.active_section = "LUT"
+    st.rerun()
 
-elif active == "Contrast":
-    slider_with_reset("Amount", "contrast_amount", -100, 100, 0, 1)
-    slider_with_reset("S-Curve", "s_curve", 0, 100, 0, 1)
-    slider_with_reset("Black Point", "black_point", 0, 50, 0, 1)
-    slider_with_reset("White Point", "white_point", 205, 255, 255, 1)
-
-elif active == "White Balance":
-    slider_with_reset("Temperature", "temperature", -100, 100, 0, 1)
-    slider_with_reset("Tint", "tint", -100, 100, 0, 1)
-
-elif active == "Saturation":
-    slider_with_reset("Saturation", "saturation", -100, 100, 0, 1)
-    slider_with_reset("Vibrance", "vibrance", -100, 100, 0, 1)
-
-elif active == "LUT":
+if is_lut_active:
     sb.selectbox("LUT File", lut_files, key="lut_path", index=0, label_visibility="collapsed")
     slider_with_reset("LUT Intensity", "lut_intensity", 0.0, 1.0, 1.0, 0.01, "%.2f")
 
