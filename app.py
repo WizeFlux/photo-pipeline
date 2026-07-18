@@ -232,10 +232,12 @@ if uploaded:
 
 # 3rd Preview — always visible, right after image upload
 if profiles_list:
-    third_profile = sb.selectbox(
-        "🖼️ 3rd Preview", profiles_list,
+    preview_options = ["None"] + profiles_list
+    third_choice = sb.selectbox(
+        "🖼️ 3rd Preview", preview_options,
         key="third_profile_select", index=0,
     )
+    third_profile = third_choice if third_choice != "None" else None
 else:
     third_profile = None
 
