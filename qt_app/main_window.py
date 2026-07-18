@@ -77,6 +77,10 @@ class MainWindow(QMainWindow):
         open_btn.clicked.connect(self._on_open)
         toolbar.addWidget(open_btn)
 
+        save_btn = QPushButton("💾 Save")
+        save_btn.clicked.connect(self._on_save)
+        toolbar.addWidget(save_btn)
+
         profiles_btn = QPushButton("📋 Profiles")
         profiles_btn.clicked.connect(self._show_profiles)
         toolbar.addWidget(profiles_btn)
@@ -187,6 +191,66 @@ class MainWindow(QMainWindow):
 
     def _on_reset(self) -> None:
         self.adjustments.reset()
+
+    def _on_save(self) -> None:
+        """Save the live-processed image with a format/quality dialog."""
+        if not self._image_path or self._live_arr is None:
+            self.statusBar().showMessage("Nothing to save — open an image first.")
+            return
+
+        # Format selection dialog
+        from PySide6.QtWidgets import QDialog, QDialogButtonBox, QFormLayout, QSpinBox
+        fmt_dialog = QDialog(self)
+        fmt_dialog.setWindowTitle("💾 Save options")
+        fmt_dialog.setMinimumWidth(280)
+        form = QFormLayout(fmt_dialog)
+        from qt_app.widgets.dialogs import _apply_dialog_font
+        _apply_dialog_font(fmt_dialog)
+
+        from PySide6.QtWidgets import QComboBox
+        fmt_combo = QComboBox()
+        fmt_combo.addItems(["JPEG", "WebP", "TIFF", "PNG"])
+        form.addRow("Format:", fmt_combo)
+        quality_spin = QSpinBox()
+        quality_spin.setRange(1, 100)
+        quality_spin.setValue(90)
+        form.addRow("Quality:", quality_spin)
+        buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        buttons.accepted.connect(fmt_dialog.accept)
+        buttons.rejected.connect(fmt_dialog.reject)
+        form.addRow(buttons)
+        if fmt_dialog.exec() != QDialog.Accepted:
+            return
+
+        fmt = fmt_combo.currentText()
+        quality = quality_spin.value()
+        ext = {"JPEG": "jpg", "WebP": "webp", "TIFF": "tiff", "PNG": "png"}[fmt]
+
+        # File save dialog
+        default_name = Path(self._image_path).stem + "_edited." + ext
+        save_path, _ = QFileDialog.getSaveFileName(
+            self, "Save image", default_name,
+            f"{fmt} (*.{ext})",
+        )
+        if not save_path:
+            return
+
+        # Process at full resolution and save
+        from PIL import Image
+        from pipeline.gpu_ops import gpu_process_from_pil
+        img = Image.open(self._image_path)
+        if img.mode != "RGB":
+            img = img.convert("RGB")
+        params = params_from_values(self.adjustments.get_params())
+        result = gpu_process_from_pil(img, params)
+
+        save_kwargs = {}
+        if fmt in ("JPEG", "WebP"):
+            save_kwargs["quality"] = quality
+        if fmt == "JPEG":
+            save_kwargs["subsampling"] = 0
+        result.save(save_path, format=fmt, **save_kwargs)
+        self.statusBar().showMessage(f"Saved: {Path(save_path).name} ({fmt} q{quality})")
 
     def _on_apply_profile(self, name: str) -> None:
         params = load_profile_params(name)
