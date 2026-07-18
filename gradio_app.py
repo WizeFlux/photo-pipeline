@@ -279,9 +279,18 @@ def build_ui():
     with gr.Blocks(title="Photo Pipeline") as app:
         gr.Markdown("# 🖼️ Photo Pipeline")
 
+        # Hide preview in upload widget
+        gr.HTML("""
+        <style>
+        #input_image img { display: none !important; }
+        #input_image .toast-wrap { display: block !important; }
+        #input_image .upload-container { min-height: 60px !important; }
+        </style>
+        """)
+
         # ─── Input (small) + 3 previews in a row ─────────────────────────────
         with gr.Row():
-            input_image = gr.Image(label="Input", type="numpy", height=150, width=200)
+            input_image = gr.Image(label="Input", type="numpy", height=80, width=200, elem_id="input_image", show_fullscreen_button=False)
             third_profile = gr.Dropdown(
                 choices=profile_options, value="None",
                 label="3rd Preview Profile",
