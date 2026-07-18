@@ -21,7 +21,8 @@ from pathlib import Path
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtWidgets import (
     QComboBox, QFileDialog, QFrame, QHBoxLayout, QLabel, QMainWindow,
-    QMessageBox, QPushButton, QSizePolicy, QSplitter, QVBoxLayout, QWidget,
+    QMessageBox, QPushButton, QSizePolicy, QSpinBox, QSplitter, QVBoxLayout,
+    QWidget,
 )
 
 from pipeline.gpu_ops import DEVICE
@@ -84,6 +85,21 @@ class MainWindow(QMainWindow):
         save_btn = QPushButton("💾 Save")
         save_btn.clicked.connect(self._on_save)
         toolbar.addWidget(save_btn)
+
+        # Format selector — shared by Save and Batch
+        toolbar.addSpacing(8)
+        toolbar.addWidget(QLabel("Format:"))
+        self.format_combo = QComboBox()
+        self.format_combo.addItems(["JPEG", "WebP", "TIFF", "PNG"])
+        self.format_combo.setCurrentText("JPEG")
+        self.format_combo.setMinimumWidth(70)
+        toolbar.addWidget(self.format_combo)
+        toolbar.addWidget(QLabel("Q:"))
+        self.quality_spin = QSpinBox()
+        self.quality_spin.setRange(1, 100)
+        self.quality_spin.setValue(90)
+        self.quality_spin.setFixedWidth(44)
+        toolbar.addWidget(self.quality_spin)
 
         profiles_btn = QPushButton("📋 Profiles")
         profiles_btn.clicked.connect(self._show_profiles)
@@ -241,49 +257,23 @@ class MainWindow(QMainWindow):
         self.adjustments.reset()
 
     def _on_save(self) -> None:
-        """Save the live-processed image with a format/quality dialog."""
+        """Save the live-processed image using the toolbar format/quality."""
         if not self._image_path or self._live_arr is None:
             self._set_status("Nothing to save — open an image first.")
             return
 
-        # Format selection dialog
-        from PySide6.QtWidgets import QDialog, QDialogButtonBox, QFormLayout, QSpinBox
-        fmt_dialog = QDialog(self)
-        fmt_dialog.setWindowTitle("💾 Save options")
-        fmt_dialog.setMinimumWidth(280)
-        form = QFormLayout(fmt_dialog)
-        from qt_app.widgets.dialogs import _apply_dialog_font
-        _apply_dialog_font(fmt_dialog)
-
-        from PySide6.QtWidgets import QComboBox
-        fmt_combo = QComboBox()
-        fmt_combo.addItems(["JPEG", "WebP", "TIFF", "PNG"])
-        form.addRow("Format:", fmt_combo)
-        quality_spin = QSpinBox()
-        quality_spin.setRange(1, 100)
-        quality_spin.setValue(90)
-        form.addRow("Quality:", quality_spin)
-        buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
-        buttons.accepted.connect(fmt_dialog.accept)
-        buttons.rejected.connect(fmt_dialog.reject)
-        form.addRow(buttons)
-        if fmt_dialog.exec() != QDialog.Accepted:
-            return
-
-        fmt = fmt_combo.currentText()
-        quality = quality_spin.value()
+        fmt = self.format_combo.currentText()
+        quality = self.quality_spin.value()
         ext = {"JPEG": "jpg", "WebP": "webp", "TIFF": "tiff", "PNG": "png"}[fmt]
 
-        # File save dialog
-        default_name = Path(self._image_path).stem + "_edited." + ext
         save_path, _ = QFileDialog.getSaveFileName(
-            self, "Save image", default_name,
+            self, "Save image",
+            Path(self._image_path).stem + "_edited." + ext,
             f"{fmt} (*.{ext})",
         )
         if not save_path:
             return
 
-        # Process at full resolution and save
         from PIL import Image
         from pipeline.gpu_ops import gpu_process_from_pil
         img = Image.open(self._image_path)
@@ -324,6 +314,10 @@ class MainWindow(QMainWindow):
                 self._batch_dialog.set_status("Input directory not found.")
             return
         params = params_from_values(self.adjustments.get_params())
+        # Inject toolbar format/quality so batch uses the same settings as Save
+        fmt = self.format_combo.currentText().lower()
+        params["output_format"] = fmt
+        params["output_quality"] = self.quality_spin.value()
         if self._batch_dialog:
             self._batch_dialog.set_status("Processing…")
         self._batch_worker = BatchWorker(input_dir, output_dir, params, use_gpu)
