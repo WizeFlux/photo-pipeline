@@ -14,11 +14,34 @@ ASSETS="assets"
 echo "=== Icon Generation ==="
 
 # ─── PNG sizes (always, all platforms) ──────────────────────────────────────
-echo "Generating PNG sizes from $ASSETS/icon.svg ..."
-for s in 16 32 64 128 256 512 1024; do
-    python3 -c "import cairosvg; cairosvg.svg2png(url='$ASSETS/icon.svg', write_to='$ASSETS/icon_${s}.png', output_width=$s, output_height=$s)"
-done
-echo "  ✓ PNG: 16, 32, 64, 128, 256, 512, 1024"
+# Ensure cairosvg is available (in the active venv)
+if ! python3 -c "import cairosvg" &>/dev/null; then
+    echo "Installing cairosvg (one-time) ..."
+    pip install cairosvg >/dev/null 2>&1 || {
+        echo "⚠ Cannot install cairosvg. Trying rsvg-convert fallback ..."
+        if command -v rsvg-convert &>/dev/null; then
+            echo "Generating PNG sizes via rsvg-convert ..."
+            for s in 16 32 64 128 256 512 1024; do
+                rsvg-convert -w "$s" -h "$s" "$ASSETS/icon.svg" -o "$ASSETS/icon_${s}.png"
+            done
+            echo "  ✓ PNG: 16, 32, 64, 128, 256, 512, 1024 (via rsvg-convert)"
+            SKIP_CAIROSVG=1
+        else
+            echo "✗ No SVG renderer found. Install one of:"
+            echo "    pip install cairosvg    (recommended)"
+            echo "    brew install librsvg    (provides rsvg-convert)"
+            exit 1
+        fi
+    }
+fi
+
+if [ "${SKIP_CAIROSVG:-0}" != "1" ]; then
+    echo "Generating PNG sizes from $ASSETS/icon.svg ..."
+    for s in 16 32 64 128 256 512 1024; do
+        python3 -c "import cairosvg; cairosvg.svg2png(url='$ASSETS/icon.svg', write_to='$ASSETS/icon_${s}.png', output_width=$s, output_height=$s)"
+    done
+    echo "  ✓ PNG: 16, 32, 64, 128, 256, 512, 1024"
+fi
 
 # ─── macOS .icns (iconutil — macOS only) ────────────────────────────────────
 if command -v iconutil &>/dev/null; then
