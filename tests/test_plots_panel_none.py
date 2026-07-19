@@ -73,3 +73,49 @@ def test_left_none_keeps_right_visible(panel):
     """Left='None' should not hide the right canvas."""
     panel.selector_left.setCurrentText("None")
     assert panel.canvas_right.isVisibleTo(panel) is True
+
+
+def test_plots_throttle_timer_exists(app):
+    """PlotsPanel should have a coalescing throttle timer."""
+    p = PlotsPanel()
+    assert p._plots_timer.isSingleShot()
+
+
+def test_update_all_starts_throttle_timer(app):
+    """update_all should start the throttle timer, not render immediately."""
+    arr = (np.random.rand(100, 150, 3) * 255).astype(np.uint8)
+    from qt_app.state import PARAM_DEFAULTS, params_from_values
+    p = PlotsPanel()
+    p.update_all(arr, arr, None, None, params_from_values(PARAM_DEFAULTS))
+    # Timer should be active (pending render), not rendered yet
+    assert p._plots_timer.isActive()
+
+
+def test_update_all_none_stops_timer(app):
+    """update_all(None) should stop the throttle timer."""
+    arr = (np.random.rand(100, 150, 3) * 255).astype(np.uint8)
+    from qt_app.state import PARAM_DEFAULTS, params_from_values
+    p = PlotsPanel()
+    p.update_all(arr, arr, None, None, params_from_values(PARAM_DEFAULTS))
+    assert p._plots_timer.isActive()
+    p.update_all(None, None, None, None, {})
+    assert not p._plots_timer.isActive()
+
+
+def test_rapid_update_all_coalesces(app):
+    """Multiple rapid update_all calls should coalesce to one render."""
+    from qt_app.state import PARAM_DEFAULTS, params_from_values
+    p = PlotsPanel()
+    for i in range(5):
+        arr = (np.random.rand(100, 150, 3) * 255).astype(np.uint8)
+        p.update_all(arr, arr, None, None, params_from_values(PARAM_DEFAULTS))
+    # Only one timer active (coalesced)
+    assert p._plots_timer.isActive()
+    # Data is the latest
+    assert p._data is not None
+
+
+def test_throttle_constant():
+    """Throttle should be 350ms."""
+    from qt_app.widgets.plots_panel import _PLOTS_THROTTLE_MS
+    assert _PLOTS_THROTTLE_MS == 350

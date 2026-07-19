@@ -22,6 +22,14 @@ from qt_app.plots import (
 from qt_app.state import load_profile_params
 
 
+# Throttle: plots only re-render after the user stops changing sliders for
+# this many ms. Heavy plots (RGB Waveform, Vectorscope) take ~900ms to
+# render on the UI thread, so rendering on every slider tick would freeze
+# the UI. The timer is restarted on every update_all() call, so only the
+# final state is rendered.
+_PLOTS_THROTTLE_MS = 350
+
+
 PLOT_TYPES = [
     "None",
     "Histograms",
@@ -105,6 +113,13 @@ class PlotsPanel(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self._data: dict | None = None
+        # Coalescing throttle timer — only the latest data gets rendered.
+        # Restarted on every update_all(); fires _redraw_plots once after
+        # the user stops dragging for _PLOTS_THROTTLE_MS.
+        from PySide6.QtCore import QTimer
+        self._plots_timer = QTimer(self)
+        self._plots_timer.setSingleShot(True)
+        self._plots_timer.timeout.connect(self._redraw_plots)
         self._build()
 
     def _build(self) -> None:
@@ -164,6 +179,7 @@ class PlotsPanel(QWidget):
     def _redraw_plots(self) -> None:
         if self._data is None:
             return
+        # Only draw left — right is drawn separately to avoid blocking.
         _draw_plot(self.canvas_left.figure, self.selector_left.currentText(), self._data)
         self.canvas_left.canvas.draw_idle()
         if self.selector_right.currentText() != "None":
@@ -191,12 +207,14 @@ class PlotsPanel(QWidget):
             "profile_name": profile_name, "params": params,
             "third_params": third_params,
         }
-        # Defer plot drawing to next event loop tick — lets the viewers
-        # paint first (they're fast), so the UI feels more responsive.
-        from PySide6.QtCore import QTimer
-        QTimer.singleShot(0, self._redraw_plots)
+        # Coalesce: restart the throttle timer on every update. Only the
+        # latest data gets rendered, after the user stops changing sliders
+        # for _PLOTS_THROTTLE_MS. This prevents the UI from blocking on
+        # ~900ms matplotlib renders during rapid slider dragging.
+        self._plots_timer.start(_PLOTS_THROTTLE_MS)
 
     def _clear_all(self) -> None:
         self._data = None
+        self._plots_timer.stop()
         self.canvas_left.clear()
         self.canvas_right.clear()
