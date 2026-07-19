@@ -205,6 +205,33 @@ def test_active_point_color_is_orange():
     assert _POINT_ACTIVE == "#ff8c00"  # orange
 
 
+def test_set_curve_from_y_updates_points(app):
+    """set_curve_from_y should update control points from a 256-value curve."""
+    ed = SCurveEditor()
+    # Create a curve where middle is lifted
+    curve = np.arange(256, dtype=np.float32)
+    curve[128] = 200
+    ed.set_curve_from_y(curve)
+    # Point at index 2 (x=128) should now be ~200
+    assert abs(ed._points_y[2] - 200) < 1.0
+
+
+def test_set_curve_from_y_clamps(app):
+    """set_curve_from_y should clamp values to [0, 255]."""
+    ed = SCurveEditor()
+    curve = np.full(256, 300.0, dtype=np.float32)  # above range
+    ed.set_curve_from_y(curve)
+    assert all(0 <= p <= 255 for p in ed._points_y)
+
+
+def test_set_curve_from_y_identity(app):
+    """set_curve_from_y with identity curve should give identity points."""
+    ed = SCurveEditor()
+    curve = np.arange(256, dtype=np.float32)
+    ed.set_curve_from_y(curve)
+    np.testing.assert_array_almost_equal(ed._points_y, ed.POINT_X)
+
+
 def test_drag_moves_point(app):
     """Dragging a control point should change its y value."""
     from unittest.mock import MagicMock

@@ -89,6 +89,64 @@ def test_params_to_config_roundtrip():
         assert back[k] == params[k], f"mismatch on {k}"
 
 
+def test_params_to_config_saves_scurve_custom():
+    """params_to_config should serialize scurve_custom as a list."""
+    curve = np.arange(256, dtype=np.float32)
+    params = {**PARAM_DEFAULTS, "scurve_custom": curve}
+    cfg = params_to_config(params)
+    assert "scurve_custom" in cfg
+    assert isinstance(cfg["scurve_custom"], list)
+    assert len(cfg["scurve_custom"]) == 256
+
+
+def test_params_from_config_loads_scurve_custom():
+    """params_from_config should load scurve_custom back into numpy array."""
+    curve = np.arange(256, dtype=np.float32) * 0.5
+    params = {**PARAM_DEFAULTS, "scurve_custom": curve}
+    cfg = params_to_config(params)
+    back = params_from_config(cfg)
+    assert "scurve_custom" in back
+    assert isinstance(back["scurve_custom"], np.ndarray)
+    np.testing.assert_array_almost_equal(back["scurve_custom"], curve)
+
+
+def test_scurve_custom_roundtrip_via_yaml(tmp_path):
+    """Save → load profile should preserve scurve_custom exactly."""
+    import yaml
+    curve = np.arange(256, dtype=np.float32)
+    # Modify a few points so it's not identity
+    curve[64] = 80
+    curve[128] = 180
+    curve[192] = 220
+    params = {**PARAM_DEFAULTS, "scurve_custom": curve, "ev": 0.5}
+    cfg = params_to_config(params)
+    # Write to YAML and read back
+    yaml_path = tmp_path / "test_profile.yaml"
+    with open(yaml_path, "w") as f:
+        yaml.dump(cfg, f, default_flow_style=False, sort_keys=False)
+    with open(yaml_path) as f:
+        loaded_cfg = yaml.safe_load(f)
+    back = params_from_config(loaded_cfg)
+    assert "scurve_custom" in back
+    assert isinstance(back["scurve_custom"], np.ndarray)
+    np.testing.assert_array_almost_equal(back["scurve_custom"], curve, decimal=3)
+    assert back["ev"] == 0.5
+
+
+def test_params_to_config_no_scurve_when_absent():
+    """params_to_config should not include scurve_custom when it's None."""
+    params = {**PARAM_DEFAULTS}
+    cfg = params_to_config(params)
+    assert "scurve_custom" not in cfg
+
+
+def test_params_from_config_no_scurve_when_absent():
+    """params_from_config should not add scurve_custom when missing in cfg."""
+    cfg = params_to_config({**PARAM_DEFAULTS})
+    back = params_from_config(cfg)
+    assert "scurve_custom" not in back
+
+
 # ─── Tone curve ──────────────────────────────────────────────────────────────
 
 def test_tone_curve_identity():

@@ -342,6 +342,16 @@ class AdjustmentsPanel(QWidget):
         self._lut_combo.blockSignals(False)
         if "lut_intensity" in params:
             self._intensity_slider.set_value(params["lut_intensity"])
+        # Restore custom S-Curve if present
+        scurve = params.get("scurve_custom")
+        if scurve is not None:
+            arr = np.asarray(scurve, dtype=np.float32)
+            self._scurve_y = arr
+            # Update editor control points to match the curve
+            self.scurve.set_curve_from_y(arr)
+        else:
+            self._scurve_y = None
+            self.scurve.reset()
 
     def reset(self) -> None:
         self.set_params(PARAM_DEFAULTS)

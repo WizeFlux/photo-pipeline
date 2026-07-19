@@ -74,7 +74,7 @@ def params_from_config(cfg: dict) -> dict[str, Any]:
     wb = cfg.get("white_balance", {})
     sat = cfg.get("saturation", {})
     lut = cfg.get("lut", {})
-    return {
+    params = {
         "ev": exp.get("ev", 0.0), "gamma": exp.get("gamma", 1.0),
         "highlights": exp.get("highlights", 0), "shadows": exp.get("shadows", 0),
         "contrast_amount": con.get("amount", 0), "s_curve": con.get("s_curve", 0),
@@ -83,11 +83,16 @@ def params_from_config(cfg: dict) -> dict[str, Any]:
         "saturation": sat.get("amount", 0), "vibrance": sat.get("vibrance", 0),
         "lut_path": lut.get("path"), "lut_intensity": lut.get("intensity", 1.0),
     }
+    # Load custom S-Curve (256 y-values) if present
+    scurve = cfg.get("scurve_custom")
+    if scurve is not None:
+        params["scurve_custom"] = np.asarray(scurve, dtype=np.float32)
+    return params
 
 
 def params_to_config(params: dict[str, Any]) -> dict:
     """Serialize a flat params dict into YAML config structure."""
-    return {
+    cfg = {
         "exposure": {"ev": params["ev"], "gamma": params["gamma"],
                       "highlights": params["highlights"], "shadows": params["shadows"]},
         "contrast": {"amount": params["contrast_amount"], "s_curve": params["s_curve"],
@@ -96,6 +101,12 @@ def params_to_config(params: dict[str, Any]) -> dict:
         "saturation": {"amount": params["saturation"], "vibrance": params["vibrance"]},
         "lut": {"path": params.get("lut_path"), "intensity": params["lut_intensity"]},
     }
+    # Save custom S-Curve (256 y-values) if present
+    scurve = params.get("scurve_custom")
+    if scurve is not None:
+        arr = np.asarray(scurve, dtype=np.float32)
+        cfg["scurve_custom"] = arr.tolist()
+    return cfg
 
 
 # ─── Profile discovery & I/O ─────────────────────────────────────────────────

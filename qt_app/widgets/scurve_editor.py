@@ -209,6 +209,19 @@ class SCurveEditor(QWidget):
         """Return the current curve as 256 y-values."""
         return self._compute_curve()
 
+    def set_curve_from_y(self, curve: np.ndarray) -> None:
+        """Set control points to best-match a 256-value curve.
+
+        Samples the curve at the fixed x positions (0, 64, 128, 192, 255)
+        and updates the control points. This is used when loading a profile.
+        """
+        curve = np.asarray(curve, dtype=np.float64)
+        for i, x in enumerate(self.POINT_X):
+            xi = int(round(x))
+            xi = max(0, min(255, xi))
+            self._points_y[i] = max(0, min(255, float(curve[xi])))
+        self._redraw()
+
     def reset(self) -> None:
         """Reset to identity curve."""
         self._points_y = self.POINT_X.copy().astype(np.float64)
