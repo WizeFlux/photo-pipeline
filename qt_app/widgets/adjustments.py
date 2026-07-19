@@ -9,6 +9,7 @@ The most recently moved slider is highlighted orange (`set_active`).
 from __future__ import annotations
 
 from PySide6.QtCore import Qt, Signal
+from PySide6.QtGui import QWheelEvent
 from PySide6.QtWidgets import (
     QComboBox, QGroupBox, QHBoxLayout, QLabel, QSlider, QVBoxLayout, QWidget,
 )
@@ -39,6 +40,52 @@ QSlider::sub-page:horizontal {
 """
 
 
+# ─── Custom slider with wheel support ────────────────────────────────────────
+
+class _Slider(QSlider):
+    """QSlider with finer wheel control and wheel-activated signal.
+
+    Wheel behavior:
+      • Normal scroll     — moderate step (range/100, min 1) for fast navigation
+      • Ctrl + scroll     — single-step (finest possible, 1 internal unit)
+      • Shift + scroll    — 5× the normal step for quick large moves
+    All wheel events emit `wheelActivated` so the parent can highlight the slider.
+    """
+
+    wheelActivated = Signal()
+
+    def __init__(self, orientation, parent=None):
+        super().__init__(orientation, parent)
+        self._single_step = 1
+
+    def set_single_step(self, step: int) -> None:
+        self._single_step = max(1, step)
+        self.setSingleStep(step)
+
+    def wheelEvent(self, event: QWheelEvent) -> None:
+        # Don't let Qt's default handle it — we want custom step sizes and
+        # we must emit wheelActivated regardless of direction.
+        notches = event.angleDelta().y() / 120.0
+        if notches == 0:
+            event.ignore()
+            return
+
+        rng = self.maximum() - self.minimum()
+        # Normal step: ~1% of range, min 1. Ctrl: finest (1). Shift: 5%.
+        modifiers = event.modifiers()
+        if modifiers & Qt.ControlModifier:
+            step = 1  # finest
+        elif modifiers & Qt.ShiftModifier:
+            step = max(1, rng // 20)  # fast large moves
+        else:
+            step = max(1, rng // 100)  # moderate
+
+        delta = int(step * (1 if notches > 0 else -1))
+        self.setValue(self.value() + delta)
+        self.wheelActivated.emit()
+        event.accept()
+
+
 # ─── Labeled slider ──────────────────────────────────────────────────────────
 
 class _LabeledSlider(QWidget):
@@ -58,9 +105,10 @@ class _LabeledSlider(QWidget):
         int_max = int(vmax * self._scale)
         int_default = int(round(float(default) * self._scale))
 
-        self.slider = QSlider(Qt.Horizontal)
+        self.slider = _Slider(Qt.Horizontal)
         self.slider.setRange(int_min, int_max)
         self.slider.setValue(int_default)
+        self.slider.set_single_step(1)
 
         self.name_label = QLabel(name)
         self.name_label.setMinimumWidth(62)
@@ -80,7 +128,9 @@ class _LabeledSlider(QWidget):
 
         # sliderPressed → this slider becomes the "active" (orange) one.
         # sliderMoved gives live updates during drag (before mouse release).
+        # wheelActivated → same activation path for mouse-wheel adjustments.
         self.slider.sliderPressed.connect(self._on_pressed)
+        self.slider.wheelActivated.connect(self._on_pressed)
         self.slider.valueChanged.connect(self._on_changed)
 
     # ── Active-highlight API ──────────────────────────────────────────────
