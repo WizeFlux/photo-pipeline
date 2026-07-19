@@ -26,6 +26,13 @@ def get_device() -> torch.device:
 
 DEVICE = get_device()
 
+# Limit torch CPU threads to avoid contention when multiple preview workers
+# run concurrently (old worker being interrupted + new one starting).
+# With 10 default threads, two workers fight for CPU and both slow down.
+# 2-3 threads per worker is the sweet spot for preview-sized images.
+if DEVICE.type == "cpu":
+    torch.set_num_threads(min(3, torch.get_num_threads()))
+
 # ─── Conversion helpers ──────────────────────────────────────────────────────
 
 def numpy_to_torch(arr: np.ndarray) -> torch.Tensor:

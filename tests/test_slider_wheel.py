@@ -45,69 +45,72 @@ def test_wheel_activates_highlight(app):
     assert activated == [s]
 
 
-def test_wheel_up_increases_value(app):
+def test_wheel_up_decreases_value(app):
+    """Inverted: scroll up decreases value."""
     s = _LabeledSlider("X", 0, 100, 50, 1, "{:d}")
     _wheel(s.slider, delta=120)
-    assert s.value() > 50
-
-
-def test_wheel_down_decreases_value(app):
-    s = _LabeledSlider("X", 0, 100, 50, 1, "{:d}")
-    _wheel(s.slider, delta=-120)
     assert s.value() < 50
 
 
+def test_wheel_down_increases_value(app):
+    """Inverted: scroll down increases value."""
+    s = _LabeledSlider("X", 0, 100, 50, 1, "{:d}")
+    _wheel(s.slider, delta=-120)
+    assert s.value() > 50
+
+
 def test_normal_wheel_is_finest(app):
-    """Normal wheel moves 1 internal unit (finest possible)."""
+    """Normal wheel moves 1 internal unit (finest possible), inverted."""
     s = _LabeledSlider("X", -100, 100, 0, 1, "{:d}")
     _wheel(s.slider)
-    assert s.value() == 1
+    assert s.value() == -1  # inverted: scroll up = decrease
 
 
 def test_ctrl_wheel_is_range_percent(app):
-    """Ctrl+wheel moves 1% of range per notch."""
+    """Ctrl+wheel moves 1% of range per notch, inverted."""
     # Range 200 → 200//100 = 2
     s = _LabeledSlider("X", -100, 100, 0, 1, "{:d}")
     _wheel(s.slider, modifiers=Qt.ControlModifier)
-    assert s.value() == 2
+    assert s.value() == -2  # inverted
 
 
 def test_shift_wheel_is_two_percent(app):
-    """Shift+wheel moves 2% of range per notch."""
+    """Shift+wheel moves 2% of range per notch, inverted."""
     # Range 200 → 200//50 = 4
     s = _LabeledSlider("X", -100, 100, 0, 1, "{:d}")
     _wheel(s.slider, modifiers=Qt.ShiftModifier)
-    assert s.value() == 4
+    assert s.value() == -4  # inverted
 
 
 def test_float_slider_normal_wheel_is_finest(app):
-    """EV slider (step=0.01) → normal wheel moves 0.01 (finest)."""
+    """EV slider (step=0.01) → normal wheel moves 0.01 (finest), inverted."""
     s = _LabeledSlider("EV", -3, 3, 0.0, 0.01, "{:.2f}")
     _wheel(s.slider)
-    assert abs(s.value() - 0.01) < 1e-9
+    assert abs(s.value() - (-0.01)) < 1e-9  # inverted
 
 
 def test_float_slider_ctrl_wheel(app):
-    """EV range=6, internal=600 → Ctrl = 600//100 = 6 → 0.06."""
+    """EV range=6, internal=600 → Ctrl = 600//100 = 6 → -0.06 (inverted)."""
     s = _LabeledSlider("EV", -3, 3, 0.0, 0.01, "{:.2f}")
     _wheel(s.slider, modifiers=Qt.ControlModifier)
-    assert abs(s.value() - 0.06) < 1e-9
+    assert abs(s.value() - (-0.06)) < 1e-9
 
 
 def test_float_slider_shift_wheel(app):
-    """EV range=600 internal → Shift = 600//50 = 12 → 0.12."""
+    """EV range=600 internal → Shift = 600//50 = 12 → -0.12 (inverted)."""
     s = _LabeledSlider("EV", -3, 3, 0.0, 0.01, "{:.2f}")
     _wheel(s.slider, modifiers=Qt.ShiftModifier)
-    assert abs(s.value() - 0.12) < 1e-9
+    assert abs(s.value() - (-0.12)) < 1e-9
 
 
 def test_wheel_does_not_exceed_range(app):
-    s = _LabeledSlider("X", 0, 10, 9, 1, "{:d}")
-    _wheel(s.slider, delta=120 * 1000)  # huge positive
-    assert s.value() == 10
-    s2 = _LabeledSlider("X", 0, 10, 1, 1, "{:d}")
-    _wheel(s2.slider, delta=-120 * 1000)  # huge negative
-    assert s2.value() == 0
+    """Inverted: scroll up at min stays at min, scroll down at max stays at max."""
+    s = _LabeledSlider("X", 0, 10, 1, 1, "{:d}")
+    _wheel(s.slider, delta=120 * 1000)  # scroll up = decrease, clamped to 0
+    assert s.value() == 0
+    s2 = _LabeledSlider("X", 0, 10, 9, 1, "{:d}")
+    _wheel(s2.slider, delta=-120 * 1000)  # scroll down = increase, clamped to 10
+    assert s2.value() == 10
 
 
 def test_panel_active_slider_switches_on_wheel(app):

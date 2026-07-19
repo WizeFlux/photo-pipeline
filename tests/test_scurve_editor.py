@@ -4,6 +4,8 @@ import numpy as np
 import pytest
 
 PySide6 = pytest.importorskip("PySide6")
+from PySide6.QtCore import Qt, QPoint, QPointF
+from PySide6.QtGui import QWheelEvent
 from PySide6.QtWidgets import QApplication
 
 from qt_app.widgets.scurve_editor import SCurveEditor
@@ -113,9 +115,9 @@ def test_no_title_label(app):
 
 
 def test_canvas_min_height_compact(app):
-    """Canvas should be compact (min height ≤ 120)."""
+    """Canvas should be compact (min height ≤ 80)."""
     ed = SCurveEditor()
-    assert ed._canvas.minimumHeight() <= 120
+    assert ed._canvas.minimumHeight() <= 80
 
 
 def test_layout_margins_compact(app):
@@ -125,3 +127,69 @@ def test_layout_margins_compact(app):
     margins = layout.contentsMargins()
     assert margins.left() <= 4 and margins.top() <= 4
     assert margins.right() <= 4 and margins.bottom() <= 4
+
+
+def test_wheel_moves_point_up(app):
+    """Scroll up should increase the active point's y value."""
+    ed = SCurveEditor()
+    ed._active_idx = 2  # middle point
+    before = ed._points_y[2]
+    pos = QPointF(ed._canvas.rect().center())
+    global_pos = QPointF(ed._canvas.mapToGlobal(ed._canvas.rect().center()))
+    we = QWheelEvent(pos, global_pos, QPoint(0, 0), QPoint(0, 120),
+                     Qt.NoButton, Qt.NoModifier, Qt.ScrollBegin, False)
+    ed.wheelEvent(we)
+    assert ed._points_y[2] > before
+
+
+def test_wheel_moves_point_down(app):
+    """Scroll down should decrease the active point's y value."""
+    ed = SCurveEditor()
+    ed._active_idx = 2
+    ed._points_y[2] = 150  # start above identity
+    before = ed._points_y[2]
+    pos = QPointF(ed._canvas.rect().center())
+    global_pos = QPointF(ed._canvas.mapToGlobal(ed._canvas.rect().center()))
+    we = QWheelEvent(pos, global_pos, QPoint(0, 0), QPoint(0, -120),
+                     Qt.NoButton, Qt.NoModifier, Qt.ScrollBegin, False)
+    ed.wheelEvent(we)
+    assert ed._points_y[2] < before
+
+
+def test_wheel_clamps_to_range(app):
+    """Wheel should not move points outside [0, 255]."""
+    ed = SCurveEditor()
+    ed._active_idx = 0
+    ed._points_y[0] = 0
+    pos = QPointF(ed._canvas.rect().center())
+    global_pos = QPointF(ed._canvas.mapToGlobal(ed._canvas.rect().center()))
+    we = QWheelEvent(pos, global_pos, QPoint(0, 0), QPoint(0, -120 * 100),
+                     Qt.NoButton, Qt.NoModifier, Qt.ScrollBegin, False)
+    ed.wheelEvent(we)
+    assert ed._points_y[0] == 0
+
+
+def test_wheel_activates_point(app):
+    """Wheel over a point should activate it (emit activated signal)."""
+    ed = SCurveEditor()
+    received = []
+    ed.activated.connect(lambda w: received.append(w))
+    pos = QPointF(ed._canvas.rect().center())
+    global_pos = QPointF(ed._canvas.mapToGlobal(ed._canvas.rect().center()))
+    we = QWheelEvent(pos, global_pos, QPoint(0, 0), QPoint(0, 120),
+                     Qt.NoButton, Qt.NoModifier, Qt.ScrollBegin, False)
+    ed.wheelEvent(we)
+    assert len(received) >= 1
+    assert ed._active_idx is not None
+
+
+def test_inactive_point_color_is_teal():
+    """Inactive control point color constant should be teal."""
+    from qt_app.widgets.scurve_editor import _POINT_COLOR, _POINT_EDGE
+    assert _POINT_COLOR == "#6fbfa8"  # teal
+
+
+def test_active_point_color_is_orange():
+    """Active control point color constant should be orange."""
+    from qt_app.widgets.scurve_editor import _POINT_ACTIVE
+    assert _POINT_ACTIVE == "#ff8c00"  # orange

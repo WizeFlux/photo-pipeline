@@ -21,9 +21,10 @@ _BG = "#1e1e1e"
 _PANEL = "#232323"
 _GRID = "#3a3a3a"
 _TEXT = "#b0b0b0"
-_CURVE_COLOR = "#6fbfa8"
-_POINT_COLOR = "#ff8c00"
-_POINT_ACTIVE = "#ffaa44"
+_CURVE_COLOR = "#6fbfa8"       # teal — curve line
+_POINT_COLOR = "#6fbfa8"       # teal — inactive control points
+_POINT_ACTIVE = "#ff8c00"      # orange — active control point
+_POINT_EDGE = "#4a9888"        # teal edge for inactive points
 
 
 class SCurveEditor(QWidget):
@@ -52,9 +53,9 @@ class SCurveEditor(QWidget):
         layout.setContentsMargins(2, 2, 2, 2)
         layout.setSpacing(0)
 
-        self._fig = Figure(figsize=(2.5, 2.2), facecolor=_BG)
+        self._fig = Figure(figsize=(2.5, 1.8), facecolor=_BG)
         self._canvas = FigureCanvasQTAgg(self._fig)
-        self._canvas.setMinimumHeight(100)
+        self._canvas.setMinimumHeight(70)
         self._canvas.mpl_connect("button_press_event", self._on_press)
         self._canvas.mpl_connect("button_release_event", self._on_release)
         self._canvas.mpl_connect("motion_notify_event", self._on_motion)
@@ -76,11 +77,13 @@ class SCurveEditor(QWidget):
         # The curve
         y = self._compute_curve()
         ax.plot(x, y, color=_CURVE_COLOR, linewidth=2.0)
-        # Control points
+        # Control points — teal inactive, orange active
         for i, (px, py) in enumerate(zip(self.POINT_X, self._points_y)):
-            color = _POINT_ACTIVE if i == self._active_idx else _POINT_COLOR
-            ax.plot(px, py, "o", color=color, markersize=7,
-                    markeredgecolor="#cc7000", markeredgewidth=1.0, picker=5)
+            is_active = i == self._active_idx
+            color = _POINT_ACTIVE if is_active else _POINT_COLOR
+            edge = "#cc7000" if is_active else _POINT_EDGE
+            ax.plot(px, py, "o", color=color, markersize=6,
+                    markeredgecolor=edge, markeredgewidth=1.0, picker=5)
         ax.set_xticklabels([])
         ax.set_yticklabels([])
         ax.tick_params(length=0)
@@ -150,6 +153,33 @@ class SCurveEditor(QWidget):
         self._points_y[self._active_idx] = new_y
         self._redraw()
         self.curveChanged.emit(self._compute_curve())
+
+    def wheelEvent(self, event) -> None:
+        """Mouse wheel moves the active control point (or nearest by x).
+
+        Scroll up = increase y, scroll down = decrease y.
+        """
+        ax = self._fig.axes[0] if self._fig.axes else None
+        if ax is None:
+            event.ignore()
+            return
+        # Determine which point to move: the active one, or the middle.
+        # (Coordinate mapping from widget→data is fragile across matplotlib
+        # versions; using the active point is robust and matches user intent.)
+        if self._active_idx is None:
+            # Pick middle point as default
+            self._active_idx = 2
+            self.activated.emit(self)
+        idx = self._active_idx
+        # Move point: scroll up = increase y, scroll down = decrease y
+        delta = event.angleDelta().y()
+        step = 5  # 5 IRE units per notch
+        new_y = max(0, min(255, self._points_y[idx] + (step if delta > 0 else -step)))
+        if new_y != self._points_y[idx]:
+            self._points_y[idx] = new_y
+            self._redraw()
+            self.curveChanged.emit(self._compute_curve())
+        event.accept()
 
     def get_curve(self) -> np.ndarray:
         """Return the current curve as 256 y-values."""

@@ -444,13 +444,15 @@ class MainWindow(QMainWindow):
         self._last_render_ts = time.perf_counter()
         self._pending_final = False
 
-        # Detach any in-flight preview worker — request interruption but
-        # DON'T wait for it. The old worker will finish on its own and its
-        # finished_preview signal is disconnected so it won't update the UI.
-        # This keeps the UI thread responsive during rapid slider changes.
+        # Detach any in-flight preview worker — terminate it immediately
+        # so it stops consuming CPU/torch threads. requestInterruption()
+        # only sets a flag that's checked between heavy ops, so the old
+        # worker would keep running for ~80ms (a full gpu_process call).
+        # terminate() kills the thread at the OS level, freeing CPU for
+        # the new worker. The old worker's signal is already disconnected
+        # so it can't update the UI even if it somehow finishes.
         if self._preview_worker is not None:
             old = self._preview_worker
-            old.requestInterruption()
             import warnings
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore")
@@ -458,7 +460,8 @@ class MainWindow(QMainWindow):
                     old.finished_preview.disconnect()
                 except (RuntimeError, TypeError):
                     pass
-            # Do NOT wait — let it die in the background. We just ignore it.
+            if old.isRunning():
+                old.terminate()  # kill immediately, don't wait
 
         params = self.adjustments.get_params()
         third = self.third_profile_combo.currentText()
@@ -492,10 +495,9 @@ class MainWindow(QMainWindow):
         self._start_plots_worker(orig, live, profile)
 
     def _start_plots_worker(self, orig, live, profile) -> None:
-        """Detach any in-flight plots worker and start a new one. No waiting."""
+        """Terminate any in-flight plots worker and start a new one. No waiting."""
         if self._plots_worker is not None:
             old = self._plots_worker
-            old.requestInterruption()
             import warnings
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore")
@@ -503,7 +505,8 @@ class MainWindow(QMainWindow):
                     old.plots_ready.disconnect()
                 except (RuntimeError, TypeError):
                     pass
-            # Don't wait — let it finish in background, we ignore its result.
+            if old.isRunning():
+                old.terminate()
         params = params_from_values(self.adjustments.get_params())
         prof_name = self.third_profile_combo.currentText()
         if prof_name == "None":

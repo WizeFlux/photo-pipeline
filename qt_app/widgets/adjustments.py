@@ -82,7 +82,7 @@ class _Slider(QSlider):
         else:
             step = 1  # finest
 
-        delta = int(step * (1 if notches > 0 else -1))
+        delta = int(step * (-1 if notches > 0 else 1))  # inverted: scroll up = decrease
         self.setValue(self.value() + delta)
         self.wheelActivated.emit()
         event.accept()

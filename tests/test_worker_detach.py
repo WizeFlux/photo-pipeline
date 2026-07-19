@@ -27,6 +27,14 @@ def test_throttle_interval_is_250ms():
     assert mw._THROTTLE_MS == 250
 
 
+def test_torch_threads_limited():
+    """torch CPU threads should be limited to ≤3 to avoid worker contention."""
+    import torch
+    from pipeline.gpu_ops import DEVICE
+    if DEVICE.type == "cpu":
+        assert torch.get_num_threads() <= 3
+
+
 def test_run_preview_does_not_wait(app, monkeypatch):
     """_run_preview should not call wait() on the old worker."""
     w = MainWindow()
@@ -45,6 +53,8 @@ def test_run_preview_does_not_wait(app, monkeypatch):
         def start(self):
             pass
         def requestInterruption(self):
+            pass
+        def terminate(self):
             pass
         def isRunning(self):
             return False
@@ -78,6 +88,8 @@ def test_plots_worker_detachment_does_not_wait(app, monkeypatch):
             pass
         def requestInterruption(self):
             pass
+        def terminate(self):
+            pass
         def isRunning(self):
             return False
         def wait(self, ms=0):
@@ -108,6 +120,8 @@ def test_preview_worker_signal_disconnected(app, monkeypatch):
         def start(self):
             pass
         def requestInterruption(self):
+            pass
+        def terminate(self):
             pass
         def isRunning(self):
             return False
