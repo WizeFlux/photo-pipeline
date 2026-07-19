@@ -62,8 +62,20 @@ class SCurveEditor(QWidget):
         self._canvas.mpl_connect("button_press_event", self._on_press)
         self._canvas.mpl_connect("button_release_event", self._on_release)
         self._canvas.mpl_connect("motion_notify_event", self._on_motion)
+        # Install event filter on canvas to intercept wheel events —
+        # matplotlib's FigureCanvasQTAgg consumes wheel events for zooming
+        # and does not forward them to the parent widget.
+        self._canvas.installEventFilter(self)
         layout.addWidget(self._canvas, 1)
         self._redraw()
+
+    def eventFilter(self, obj, event):
+        """Intercept wheel events on the canvas and forward to self."""
+        from PySide6.QtCore import QEvent
+        if event.type() == QEvent.Wheel:
+            self.wheelEvent(event)
+            return True  # consume — don't let matplotlib zoom
+        return False
 
     def _redraw(self) -> None:
         self._fig.clear()

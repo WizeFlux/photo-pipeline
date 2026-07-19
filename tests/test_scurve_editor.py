@@ -268,3 +268,53 @@ def test_mouse_tracking_enabled(app):
     """Canvas should have mouse tracking enabled for drag motion events."""
     ed = SCurveEditor()
     assert ed._canvas.hasMouseTracking() is True
+
+
+def test_wheel_intercepted_by_event_filter(app):
+    """Wheel events on canvas should be intercepted by eventFilter and
+    forwarded to wheelEvent (matplotlib consumes them otherwise)."""
+    from PySide6.QtCore import QEvent, QPointF, QPoint, Qt
+    from PySide6.QtGui import QWheelEvent
+    ed = SCurveEditor()
+    ed.resize(200, 100)
+    ed.show()
+    app.processEvents()
+    # Send wheel to canvas — eventFilter should intercept and call wheelEvent
+    canvas = ed._canvas
+    center = canvas.rect().center()
+    pos = QPointF(center.x(), center.y())
+    gpos = QPointF(canvas.mapToGlobal(center).x(), canvas.mapToGlobal(center).y())
+    we = QWheelEvent(pos, gpos, QPoint(0, 0), QPoint(0, 120),
+                     Qt.NoButton, Qt.NoModifier, Qt.ScrollBegin, False)
+    app.sendEvent(canvas, we)
+    app.processEvents()
+    # Middle point should have moved up by 5
+    assert ed._points_y[2] == 133.0
+    assert ed._active_idx == 2
+
+
+def test_event_filter_consumes_wheel(app):
+    """eventFilter should return True for wheel events (consume them)."""
+    from PySide6.QtCore import QEvent, QPointF, QPoint, Qt
+    from PySide6.QtGui import QWheelEvent
+    ed = SCurveEditor()
+    canvas = ed._canvas
+    center = canvas.rect().center()
+    pos = QPointF(center.x(), center.y())
+    gpos = QPointF(canvas.mapToGlobal(center).x(), canvas.mapToGlobal(center).y())
+    we = QWheelEvent(pos, gpos, QPoint(0, 0), QPoint(0, 120),
+                     Qt.NoButton, Qt.NoModifier, Qt.ScrollBegin, False)
+    result = ed.eventFilter(canvas, we)
+    assert result is True  # consumed
+
+
+def test_event_filter_passes_non_wheel(app):
+    """eventFilter should return False for non-wheel events."""
+    from PySide6.QtCore import QEvent
+    ed = SCurveEditor()
+    # Create a fake non-wheel event
+    from unittest.mock import MagicMock
+    fake = MagicMock()
+    fake.type.return_value = QEvent.MouseMove
+    result = ed.eventFilter(ed._canvas, fake)
+    assert result is False
