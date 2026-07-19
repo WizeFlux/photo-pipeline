@@ -1,4 +1,10 @@
-"""Tests for slider wheel events and active-highlight behavior."""
+"""Tests for slider wheel events and active-highlight behavior.
+
+Wheel step scheme (updated):
+  • Normal scroll     — 1 internal unit (finest)
+  • Ctrl + scroll     — 1% of range
+  • Shift + scroll    — 2% of range
+"""
 
 import pytest
 
@@ -51,48 +57,48 @@ def test_wheel_down_decreases_value(app):
     assert s.value() < 50
 
 
-def test_normal_wheel_step_is_range_percent(app):
-    """Normal wheel moves ~1% of range per notch."""
-    # Range 200 (−100..100), step=1 → internal range 200 → 200//100 = 2
+def test_normal_wheel_is_finest(app):
+    """Normal wheel moves 1 internal unit (finest possible)."""
     s = _LabeledSlider("X", -100, 100, 0, 1, "{:d}")
     _wheel(s.slider)
-    assert s.value() == 2
-
-
-def test_ctrl_wheel_is_finest(app):
-    """Ctrl+wheel moves 1 internal unit (finest possible)."""
-    s = _LabeledSlider("X", -100, 100, 0, 1, "{:d}")
-    _wheel(s.slider, modifiers=Qt.ControlModifier)
     assert s.value() == 1
 
 
-def test_shift_wheel_is_fast(app):
-    """Shift+wheel moves ~5% of range per notch."""
-    # Range 200 → 200//20 = 10
+def test_ctrl_wheel_is_range_percent(app):
+    """Ctrl+wheel moves 1% of range per notch."""
+    # Range 200 → 200//100 = 2
+    s = _LabeledSlider("X", -100, 100, 0, 1, "{:d}")
+    _wheel(s.slider, modifiers=Qt.ControlModifier)
+    assert s.value() == 2
+
+
+def test_shift_wheel_is_two_percent(app):
+    """Shift+wheel moves 2% of range per notch."""
+    # Range 200 → 200//50 = 4
     s = _LabeledSlider("X", -100, 100, 0, 1, "{:d}")
     _wheel(s.slider, modifiers=Qt.ShiftModifier)
-    assert s.value() == 10
+    assert s.value() == 4
 
 
-def test_float_slider_ctrl_wheel_is_finest(app):
-    """EV slider (step=0.01) → Ctrl+wheel moves 0.01 (smallest increment)."""
+def test_float_slider_normal_wheel_is_finest(app):
+    """EV slider (step=0.01) → normal wheel moves 0.01 (finest)."""
     s = _LabeledSlider("EV", -3, 3, 0.0, 0.01, "{:.2f}")
-    _wheel(s.slider, modifiers=Qt.ControlModifier)
+    _wheel(s.slider)
     assert abs(s.value() - 0.01) < 1e-9
 
 
-def test_float_slider_normal_wheel(app):
-    """EV range=6, internal=600 → normal step = 600//100 = 6 → 0.06."""
+def test_float_slider_ctrl_wheel(app):
+    """EV range=6, internal=600 → Ctrl = 600//100 = 6 → 0.06."""
     s = _LabeledSlider("EV", -3, 3, 0.0, 0.01, "{:.2f}")
-    _wheel(s.slider)
+    _wheel(s.slider, modifiers=Qt.ControlModifier)
     assert abs(s.value() - 0.06) < 1e-9
 
 
 def test_float_slider_shift_wheel(app):
-    """EV range=600 internal → shift = 600//20 = 30 → 0.30."""
+    """EV range=600 internal → Shift = 600//50 = 12 → 0.12."""
     s = _LabeledSlider("EV", -3, 3, 0.0, 0.01, "{:.2f}")
     _wheel(s.slider, modifiers=Qt.ShiftModifier)
-    assert abs(s.value() - 0.30) < 1e-9
+    assert abs(s.value() - 0.12) < 1e-9
 
 
 def test_wheel_does_not_exceed_range(app):

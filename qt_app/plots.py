@@ -136,30 +136,36 @@ def draw_channel_deltas(
     profile: np.ndarray | None = None,
     profile_name: str | None = None,
 ) -> None:
-    """Draw per-channel histogram deltas onto `fig` (cleared first)."""
+    """Draw per-channel histogram deltas onto `fig` (cleared first).
+
+    Two panels when a profile is present:
+      • Left:  Sliders − Original  (effect of current adjustments vs source)
+      • Right: Sliders − Profile   (how your adjustments differ from the
+        saved profile — useful for matching a look)
+    One panel when no profile: Sliders − Original only.
+    """
     fig.clear()
     fig.set_facecolor(_BG)
     orig_arr = np.asarray(orig, dtype=np.uint8)
     bins = np.arange(256)
 
-    # Downsample orig once if large
-    h, w = orig_arr.shape[:2]
-    if h * w > 200_000:
-        step = int((h * w / 200_000) ** 0.5)
-        orig_arr = orig_arr[::step, ::step]
+    def _downsample(arr: np.ndarray) -> np.ndarray:
+        h, w = arr.shape[:2]
+        if h * w > 200_000:
+            step = int((h * w / 200_000) ** 0.5)
+            arr = arr[::step, ::step]
+        return arr
+
+    orig_arr = _downsample(orig_arr)
     orig_hists = [_hist_uint8(orig_arr[..., i]) for i in range(3)]
 
-    def _draw_deltas(ax, after_arr, title):
+    def _draw_deltas(ax, after_arr, baseline_hists, title):
         after_arr = np.asarray(after_arr, dtype=np.uint8)
         if after_arr.shape[:2] != orig_arr.shape[:2]:
-            # Different size — downsample to same pixel count
-            h2, w2 = after_arr.shape[:2]
-            if h2 * w2 > 200_000:
-                step2 = int((h2 * w2 / 200_000) ** 0.5)
-                after_arr = after_arr[::step2, ::step2]
+            after_arr = _downsample(after_arr)
         for i, name in enumerate(["R", "G", "B"]):
             a_h = _hist_uint8(after_arr[..., i])
-            delta = a_h.astype(np.float32) - orig_hists[i].astype(np.float32)
+            delta = a_h.astype(np.float32) - baseline_hists[i].astype(np.float32)
             bins_d = np.append(bins, bins[::-1])
             delta_d = np.append(delta, delta[::-1])
             ax.fill(bins_d, delta_d, color=_CHANNEL_FILLS[name], linewidth=0)
@@ -169,14 +175,23 @@ def draw_channel_deltas(
         ax.legend(loc="upper right", framealpha=0.2, fontsize=7,
                   labelcolor=_TEXT, edgecolor=_GRID)
 
-    n = 2 if profile is not None else 1
-    ax1 = fig.add_subplot(1, n, 1)
-    _style_axes(ax1, "Live − Original")
-    _draw_deltas(ax1, live, "Live − Original")
     if profile is not None:
-        ax2 = fig.add_subplot(1, n, 2)
-        _style_axes(ax2, f"{profile_name} − Original")
-        _draw_deltas(ax2, profile, f"{profile_name} − Original")
+        # Two panels: Sliders−Original | Sliders−Profile
+        prof_arr = _downsample(np.asarray(profile, dtype=np.uint8))
+        prof_hists = [_hist_uint8(prof_arr[..., i]) for i in range(3)]
+
+        ax1 = fig.add_subplot(1, 2, 1)
+        _style_axes(ax1, "Sliders − Original")
+        _draw_deltas(ax1, live, orig_hists, "Sliders − Original")
+
+        ax2 = fig.add_subplot(1, 2, 2)
+        _style_axes(ax2, f"Sliders − {profile_name or 'Profile'}")
+        _draw_deltas(ax2, live, prof_hists, f"Sliders − {profile_name or 'Profile'}")
+    else:
+        # One panel: Sliders − Original
+        ax1 = fig.add_subplot(1, 1, 1)
+        _style_axes(ax1, "Sliders − Original")
+        _draw_deltas(ax1, live, orig_hists, "Sliders − Original")
     fig.tight_layout(pad=0.5)
 
 
@@ -257,8 +272,9 @@ def draw_rgb_waveform(
     """Draw per-channel IRE waveforms (video color-grading style).
 
     For each column of the image, plots the luminance distribution vertically
-    (0 at bottom, 255 at top). R/G/B channels overlaid so you can see where
-    each channel concentrates and where clipping happens.
+    (0 at bottom, 255 at top). Uses RGB parade layout: R | G | B side-by-side
+    as separate panels so channels don't occlude each other. Brighter = more
+    pixels at that IRE level for that column.
     """
     fig.clear()
     fig.set_facecolor(_BG)
@@ -267,30 +283,45 @@ def draw_rgb_waveform(
         arr = np.asarray(arr, dtype=np.float32)
         arr = _downsample_col(arr, 256)
         h, w = arr.shape[:2]
-        bins = np.arange(256)
-        # Per-column histogram → (256, W) matrix
-        # Downsample rows if huge
-        if h > 200_000:
+        if h > 100_000:
             arr = arr[::2]
             h = arr.shape[0]
-        # Build luminance per channel as 2D intensity: rows=brightness, cols=x
-        for ci, name in enumerate([("R", 0), ("G", 1), ("B", 2)]):
-            label, idx = name
-            chan = arr[..., idx].astype(np.int32)
-            # Column-wise histogram, normalized
+        # RGB parade: 3 sub-panels within this axes's slot — R | G | B
+        for ci, label in enumerate(["R", "G", "B"]):
+            chan = arr[..., ci].astype(np.int32)
+            # Build column-wise histogram intensity matrix (256 x W)
             intensity = np.zeros((256, w), dtype=np.float32)
             for x in range(w):
-                col = chan[:, x]
-                h_x = np.bincount(col, minlength=256)[:256]
+                h_x = np.bincount(chan[:, x], minlength=256)[:256]
                 intensity[:, x] = h_x
-            # Normalize to 0..1 for overlay
+            # Gamma-stretch for visibility: low counts become visible
             mx = intensity.max()
             if mx > 0:
-                intensity /= mx
-            ax.imshow(intensity, aspect="auto", origin="lower",
-                      extent=[0, w, 0, 255], cmap={"R": "Reds", "G": "Greens", "B": "Blues"}[label],
-                      alpha=0.55, vmin=0, vmax=1)
-        _style_axes(ax, title)
+                intensity = (intensity / mx) ** 0.5  # sqrt gamma → brighter lows
+            # Sub-axes: 3 vertical strips inside this slot
+            sub = ax.inset_axes([(ci / 3) + 0.005, 0.0, (1 / 3) - 0.01, 1.0])
+            sub.imshow(intensity, aspect="auto", origin="lower",
+                       extent=[0, w, 0, 255], cmap={"R": "magma", "G": "viridis",
+                                                     "B": "cividis"}[label],
+                       vmin=0, vmax=1.0)
+            sub.set_xticklabels([])
+            sub.set_yticklabels([])
+            sub.tick_params(length=0)
+            for sp in sub.spines.values():
+                sp.set_color(_GRID)
+                sp.set_linewidth(0.5)
+            # Channel label at top of each strip
+            sub.set_title(label, color=_CHANNEL_COLORS[label], fontsize=8,
+                          pad=2, loc="left")
+        # Parent axes: just frame + main title, no grid lines
+        ax.set_xticklabels([])
+        ax.set_yticklabels([])
+        ax.tick_params(length=0)
+        for sp in ax.spines.values():
+            sp.set_color(_GRID)
+            sp.set_linewidth(0.5)
+        ax.set_facecolor(_PANEL)
+        ax.set_title(title, color=_TEXT, fontsize=9, pad=4)
         ax.set_ylim(0, 255)
 
     n = 3 if profile is not None else 2

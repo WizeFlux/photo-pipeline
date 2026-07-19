@@ -46,9 +46,9 @@ class _Slider(QSlider):
     """QSlider with finer wheel control and wheel-activated signal.
 
     Wheel behavior:
-      • Normal scroll     — moderate step (range/100, min 1) for fast navigation
-      • Ctrl + scroll     — single-step (finest possible, 1 internal unit)
-      • Shift + scroll    — 5× the normal step for quick large moves
+      • Normal scroll     — 1 internal unit (finest possible)
+      • Ctrl + scroll     — 1% of range per notch (moderate navigation)
+      • Shift + scroll    — 2% of range per notch (fast large moves)
     All wheel events emit `wheelActivated` so the parent can highlight the slider.
     """
 
@@ -71,14 +71,14 @@ class _Slider(QSlider):
             return
 
         rng = self.maximum() - self.minimum()
-        # Normal step: ~1% of range, min 1. Ctrl: finest (1). Shift: 5%.
+        # Normal: finest (1). Ctrl: 1% of range. Shift: 2% of range.
         modifiers = event.modifiers()
         if modifiers & Qt.ControlModifier:
-            step = 1  # finest
+            step = max(1, rng // 100)
         elif modifiers & Qt.ShiftModifier:
-            step = max(1, rng // 20)  # fast large moves
+            step = max(1, rng // 50)  # 2%
         else:
-            step = max(1, rng // 100)  # moderate
+            step = 1  # finest
 
         delta = int(step * (1 if notches > 0 else -1))
         self.setValue(self.value() + delta)
