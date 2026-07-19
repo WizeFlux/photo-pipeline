@@ -199,7 +199,7 @@ class SCurveEditor(QWidget):
         idx = self._active_idx
         # Move point: scroll up = increase y, scroll down = decrease y
         delta = event.angleDelta().y()
-        step = 5  # 5 IRE units per notch
+        step = 1  # 1 IRE unit per notch for fine control
         new_y = max(0, min(255, self._points_y[idx] + (step if delta > 0 else -step)))
         if new_y != self._points_y[idx]:
             self._points_y[idx] = new_y

@@ -279,7 +279,6 @@ def test_wheel_intercepted_by_event_filter(app):
     ed.resize(200, 100)
     ed.show()
     app.processEvents()
-    # Send wheel to canvas — eventFilter should intercept and call wheelEvent
     canvas = ed._canvas
     center = canvas.rect().center()
     pos = QPointF(center.x(), center.y())
@@ -288,8 +287,8 @@ def test_wheel_intercepted_by_event_filter(app):
                      Qt.NoButton, Qt.NoModifier, Qt.ScrollBegin, False)
     app.sendEvent(canvas, we)
     app.processEvents()
-    # Middle point should have moved up by 5
-    assert ed._points_y[2] == 133.0
+    # Middle point should have moved up by 1 (fine resolution)
+    assert ed._points_y[2] == 129.0
     assert ed._active_idx == 2
 
 
