@@ -176,17 +176,14 @@ class _LabeledSlider(QWidget):
 
 _EXPOSURE_SPECS = [
     ("ev", "EV", -3, 3, 0.0, 0.01, "{:+.2f}"),
-    ("gamma", "Gamma", 0.5, 2.5, 1.0, 0.01, "{:.2f}"),
     ("highlights", "Highlights", -100, 100, 0, 1, "{:+d}"),
     ("shadows", "Shadows", -100, 100, 0, 1, "{:+d}"),
 ]
 
-_CONTRAST_SPECS = [
-    ("contrast_amount", "Amount", -100, 100, 0, 1, "{:+d}"),
-    ("s_curve", "S-Curve", 0, 100, 0, 1, "{:d}"),
-    ("black_point", "Black Point", 0, 50, 0, 1, "{:d}"),
-    ("white_point", "White Point", 205, 255, 255, 1, "{:d}"),
-]
+# Contrast group removed — the interactive S-Curve editor (6th column)
+# replaces gamma, contrast_amount, s_curve, black_point, white_point.
+# gamma is also handled by the S-Curve (tone shaping).
+_CONTRAST_SPECS: list[tuple] = []
 
 _WB_SPECS = [
     ("temperature", "Temp", -100, 100, 0, 1, "{:+d}"),
@@ -271,11 +268,12 @@ class AdjustmentsPanel(QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(4)
         layout.addWidget(_build_slider_group("Exposure", _EXPOSURE_SPECS, self), 1)
-        layout.addWidget(_build_slider_group("Contrast", _CONTRAST_SPECS, self), 1)
+        # Contrast group removed — replaced by interactive S-Curve editor.
+        # gamma is also handled by the S-Curve (tone shaping).
         layout.addWidget(_build_slider_group("WB", _WB_SPECS, self), 1)
         layout.addWidget(_build_slider_group("Saturation", _SAT_SPECS, self), 1)
         layout.addWidget(_build_lut_group(self), 1)
-        # 6th column: interactive S-Curve editor
+        # 5th column: interactive S-Curve editor (replaces Contrast sliders)
         self.scurve = SCurveEditor()
         self.scurve.activated.connect(self._set_active_widget)
         layout.addWidget(self.scurve, 1)

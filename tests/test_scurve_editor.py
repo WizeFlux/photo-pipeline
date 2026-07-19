@@ -74,12 +74,13 @@ def test_activated_signal(app):
     assert received == [ed]
 
 
-def test_set_active_highlight(app):
+def test_set_active_is_noop(app):
+    """set_active is a no-op (no orange border per user request)."""
     ed = SCurveEditor()
     ed.set_active(True)
-    assert "ff8c00" in ed.styleSheet()
+    assert ed.styleSheet() == ""
     ed.set_active(False)
-    assert "ff8c00" not in ed.styleSheet()
+    assert ed.styleSheet() == ""
 
 
 def test_nearest_point_finds_close(app):
@@ -101,3 +102,26 @@ def test_control_points_x_fixed(app):
     np.testing.assert_array_equal(
         ed.POINT_X, [0, 64, 128, 192, 255]
     )
+
+
+def test_no_title_label(app):
+    """Editor should not have a title label (removed per user request)."""
+    from PySide6.QtWidgets import QLabel
+    ed = SCurveEditor()
+    labels = ed.findChildren(QLabel)
+    assert len(labels) == 0, f"Found {len(labels)} labels, expected 0"
+
+
+def test_canvas_min_height_compact(app):
+    """Canvas should be compact (min height ≤ 120)."""
+    ed = SCurveEditor()
+    assert ed._canvas.minimumHeight() <= 120
+
+
+def test_layout_margins_compact(app):
+    """Layout margins should be small (≤ 4px)."""
+    ed = SCurveEditor()
+    layout = ed.layout()
+    margins = layout.contentsMargins()
+    assert margins.left() <= 4 and margins.top() <= 4
+    assert margins.right() <= 4 and margins.bottom() <= 4

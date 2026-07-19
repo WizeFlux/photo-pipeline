@@ -40,17 +40,25 @@ PARAM_DEFAULTS: dict[str, Any] = {
 
 
 def params_from_values(values: dict[str, Any]) -> dict[str, Any]:
-    """Normalize raw slider values into processing params dict."""
+    """Normalize raw slider values into processing params dict.
+
+    Values for removed sliders (gamma, contrast_amount, s_curve,
+    black_point, white_point — now handled by the S-Curve editor) fall
+    back to PARAM_DEFAULTS so the processing pipeline always gets a
+    complete params dict.
+    """
     lut = values.get("lut_path")
+    # Merge defaults with provided values — missing keys use defaults.
+    merged = {**PARAM_DEFAULTS, **{k: v for k, v in values.items() if v is not None}}
     params = {
-        "ev": values["ev"], "gamma": values["gamma"],
-        "highlights": values["highlights"], "shadows": values["shadows"],
-        "contrast_amount": values["contrast_amount"], "s_curve": values["s_curve"],
-        "black_point": values["black_point"], "white_point": values["white_point"],
-        "temperature": values["temperature"], "tint": values["tint"],
-        "saturation": values["saturation"], "vibrance": values["vibrance"],
+        "ev": merged["ev"], "gamma": merged["gamma"],
+        "highlights": merged["highlights"], "shadows": merged["shadows"],
+        "contrast_amount": merged["contrast_amount"], "s_curve": merged["s_curve"],
+        "black_point": merged["black_point"], "white_point": merged["white_point"],
+        "temperature": merged["temperature"], "tint": merged["tint"],
+        "saturation": merged["saturation"], "vibrance": merged["vibrance"],
         "lut_path": None if lut in (None, "None", "") else lut,
-        "lut_intensity": values["lut_intensity"],
+        "lut_intensity": merged["lut_intensity"],
     }
     # Optional custom S-Curve from interactive editor (256 y-values or None)
     scurve = values.get("scurve_custom")

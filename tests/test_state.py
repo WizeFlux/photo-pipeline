@@ -16,6 +16,9 @@ from qt_app.state import (
 
 
 def test_param_defaults_keys():
+    # gamma, contrast_amount, s_curve, black_point, white_point remain in
+    # PARAM_DEFAULTS (processing still needs them) even though their sliders
+    # were removed from the UI.
     expected = {
         "ev", "gamma", "highlights", "shadows",
         "contrast_amount", "s_curve", "black_point", "white_point",
@@ -23,6 +26,27 @@ def test_param_defaults_keys():
         "lut_path", "lut_intensity",
     }
     assert set(PARAM_DEFAULTS.keys()) == expected
+
+
+def test_params_from_values_fills_missing_contrast_keys():
+    """With contrast sliders removed, params_from_values should still
+    produce a complete params dict by falling back to PARAM_DEFAULTS."""
+    values = {
+        "ev": 0.5, "highlights": 10, "shadows": 20,
+        "temperature": 15, "tint": -5,
+        "saturation": 30, "vibrance": 10,
+        "lut_path": "None", "lut_intensity": 1.0,
+    }
+    params = params_from_values(values)
+    # Removed-slider keys should fall back to defaults
+    assert params["gamma"] == 1.0
+    assert params["contrast_amount"] == 0
+    assert params["s_curve"] == 0
+    assert params["black_point"] == 0
+    assert params["white_point"] == 255
+    # Provided keys should pass through
+    assert params["ev"] == 0.5
+    assert params["temperature"] == 15
 
 
 def test_params_from_values_passes_through():

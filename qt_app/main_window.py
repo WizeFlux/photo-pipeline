@@ -40,8 +40,8 @@ from qt_app.workers import BatchWorker, PlotsWorker, PreviewWorker
 
 # Throttle interval: while dragging a slider, the preview is regenerated at
 # most once per this many milliseconds. A final render always fires after the
-# user stops moving.
-_THROTTLE_MS = 500
+# user stops moving. Kept low (250ms) for responsive feel.
+_THROTTLE_MS = 250
 
 
 class MainWindow(QMainWindow):
@@ -444,12 +444,21 @@ class MainWindow(QMainWindow):
         self._last_render_ts = time.perf_counter()
         self._pending_final = False
 
-        # Cancel any in-flight worker and wait for it to actually stop.
+        # Detach any in-flight preview worker — request interruption but
+        # DON'T wait for it. The old worker will finish on its own and its
+        # finished_preview signal is disconnected so it won't update the UI.
+        # This keeps the UI thread responsive during rapid slider changes.
         if self._preview_worker is not None:
             old = self._preview_worker
             old.requestInterruption()
-            if old.isRunning():
-                old.wait(2000)
+            import warnings
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                try:
+                    old.finished_preview.disconnect()
+                except (RuntimeError, TypeError):
+                    pass
+            # Do NOT wait — let it die in the background. We just ignore it.
 
         params = self.adjustments.get_params()
         third = self.third_profile_combo.currentText()
@@ -483,12 +492,18 @@ class MainWindow(QMainWindow):
         self._start_plots_worker(orig, live, profile)
 
     def _start_plots_worker(self, orig, live, profile) -> None:
-        """Cancel any in-flight plots worker and start a new one."""
+        """Detach any in-flight plots worker and start a new one. No waiting."""
         if self._plots_worker is not None:
             old = self._plots_worker
             old.requestInterruption()
-            if old.isRunning():
-                old.wait(500)
+            import warnings
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                try:
+                    old.plots_ready.disconnect()
+                except (RuntimeError, TypeError):
+                    pass
+            # Don't wait — let it finish in background, we ignore its result.
         params = params_from_values(self.adjustments.get_params())
         prof_name = self.third_profile_combo.currentText()
         if prof_name == "None":

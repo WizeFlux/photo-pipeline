@@ -10,8 +10,8 @@ Used as the 6th column in the adjustments row (after LUT).
 from __future__ import annotations
 
 import numpy as np
-from PySide6.QtCore import Qt, Signal
-from PySide6.QtWidgets import QVBoxLayout, QWidget, QLabel, QHBoxLayout
+from PySide6.QtCore import Signal
+from PySide6.QtWidgets import QVBoxLayout, QWidget
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg
 from matplotlib.figure import Figure
 
@@ -49,16 +49,12 @@ class SCurveEditor(QWidget):
 
     def _build(self) -> None:
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(6, 10, 6, 6)
-        layout.setSpacing(2)
+        layout.setContentsMargins(2, 2, 2, 2)
+        layout.setSpacing(0)
 
-        title = QLabel("S-Curve")
-        title.setStyleSheet("color: #b0b0b0; font-weight: bold;")
-        layout.addWidget(title)
-
-        self._fig = Figure(figsize=(3, 3), facecolor=_BG)
+        self._fig = Figure(figsize=(2.5, 2.2), facecolor=_BG)
         self._canvas = FigureCanvasQTAgg(self._fig)
-        self._canvas.setMinimumHeight(140)
+        self._canvas.setMinimumHeight(100)
         self._canvas.mpl_connect("button_press_event", self._on_press)
         self._canvas.mpl_connect("button_release_event", self._on_release)
         self._canvas.mpl_connect("motion_notify_event", self._on_motion)
@@ -166,8 +162,7 @@ class SCurveEditor(QWidget):
         self.curveChanged.emit(self._compute_curve())
 
     def set_active(self, active: bool) -> None:
-        """Highlight the editor (orange border) when active."""
-        if active:
-            self.setStyleSheet("border: 1px solid #ff8c00; border-radius: 3px;")
-        else:
-            self.setStyleSheet("")
+        """Subtle highlight when active — no border, just tint the curve."""
+        # No-op: the active point is already highlighted in _redraw.
+        # Intentionally no orange border per user request.
+        pass
