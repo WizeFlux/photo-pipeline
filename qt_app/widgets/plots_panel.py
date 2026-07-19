@@ -145,17 +145,19 @@ class PlotsPanel(QWidget):
         layout.addWidget(self.plot_splitter, 1)
 
     def _on_selection_changed(self) -> None:
-        """Show/hide right canvas depending on 'None' selection."""
+        """Show/hide right canvas depending on 'None' selection.
+
+        The right selector stays visible so the user can switch back from
+        'None' to a real plot. Only the canvas and its label are hidden.
+        """
         right_is_none = self.selector_right.currentText() == "None"
         if right_is_none:
             self.canvas_right.hide()
             self._right_label.hide()
-            self.selector_right.hide()
             self.plot_splitter.setHandleWidth(0)
         else:
             self.canvas_right.show()
             self._right_label.show()
-            self.selector_right.show()
             self.plot_splitter.setHandleWidth(8)
         self._redraw_plots()
 

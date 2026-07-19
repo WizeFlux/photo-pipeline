@@ -55,7 +55,8 @@ def test_right_none_hides_canvas(panel):
     panel.selector_right.setCurrentText("None")
     assert panel.canvas_right.isVisibleTo(panel) is False
     assert panel._right_label.isVisibleTo(panel) is False
-    assert panel.selector_right.isVisibleTo(panel) is False
+    # Selector stays visible so user can switch back
+    assert panel.selector_right.isVisibleTo(panel) is True
     assert panel.plot_splitter.handleWidth() == 0
 
 
