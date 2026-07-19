@@ -572,9 +572,15 @@ class MainWindow(QMainWindow):
 def run() -> None:
     """Application entry point."""
     from PySide6.QtWidgets import QApplication
+    from PySide6.QtGui import QIcon
+    from pathlib import Path
     import sys
     app = QApplication(sys.argv)
     apply_theme(app)
+    # Set app window icon (teal-orange S-curve color wheel)
+    icon_path = Path(__file__).parent / "assets" / "icon_512.png"
+    if icon_path.exists():
+        app.setWindowIcon(QIcon(str(icon_path)))
     window = MainWindow()
     window.show()
     sys.exit(app.exec())

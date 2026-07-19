@@ -1,0 +1,47 @@
+# Cinematic profile — warm, moody, film-like look
+
+crop:
+  aspect_ratio: "4:3"
+  gravity: center
+
+exposure:
+  ev: -0.3                  # slightly underexposed for mood
+  gamma: 1.1                # slight gamma lift in shadows
+  highlights: -20           # recover some highlights
+  shadows: 15               # lift shadows slightly
+
+contrast:
+  amount: 15
+  s_curve: 30               # film-like S-curve
+  black_point: 5
+  white_point: 250
+
+white_balance:
+  temperature: 12           # slightly warm
+  tint: 3
+  preset: null
+
+saturation:
+  amount: -10               # slightly desaturated
+  vibrance: 15              # but boost muted colors
+
+lut:
+  path: null                # add your .cube LUT here
+  intensity: 0.8
+
+vignette:
+  amount: -25               # gentle dark vignette
+  size: 60
+  feather: 70
+  roundness: -20
+
+grain:
+  amount: 15
+  size: 2
+  monochrome: true
+
+output:
+  width: 1920
+  format: webp
+  quality: 90
+  suffix: _cinematic

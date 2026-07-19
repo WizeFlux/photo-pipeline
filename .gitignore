@@ -12,4 +12,4 @@ core.*
 
 # User content — keep local, don't track
 luts/
-profiles/
+profiles/assets/icon_*.png
