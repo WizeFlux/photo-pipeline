@@ -32,22 +32,35 @@ mkdir -p "$APP_PATH/Contents/Resources"
 cp assets/app.icns "$APP_PATH/Contents/Resources/app.icns"
 
 # Create the launcher script inside the bundle
-cat > "$APP_PATH/Contents/MacOS/$APP_NAME" << 'LAUNCHER'
+# Hardcode the project root at build time (absolute path) so it works
+# regardless of how the .app is launched (open, Finder, terminal).
+PROJECT_ROOT="$ROOT"
+cat > "$APP_PATH/Contents/MacOS/$APP_NAME" << LAUNCHER
 #!/bin/bash
-# Find the project root (parent of the .app bundle)
-APP_DIR="$(dirname "$(dirname "$(dirname "$0")")")"
-# If running from the source tree, project root is the parent
-if [ -d "$APP_DIR/qt_app" ]; then
-    cd "$APP_DIR"
-else
-    # Fallback: try common locations
-    cd "$(dirname "$0")/../.."
-fi
+# Auto-generated launcher for PhotoPipeline.app
+# Project root is hardcoded at build time.
+
+PROJECT_ROOT="$PROJECT_ROOT"
+LOG_FILE="\$HOME/.photo-pipeline-launch.log"
+
+exec >> "\$LOG_FILE" 2>&1
+echo "=== \$(date) ==="
+echo "Launching from: \$PROJECT_ROOT"
+
+cd "\$PROJECT_ROOT" || {
+    echo "ERROR: Cannot cd to \$PROJECT_ROOT"
+    exit 1
+}
+
 # Activate venv if present
-if [ -f ".venv/bin/activate" ]; then
-    source .venv/bin/activate
+if [ -f "\$PROJECT_ROOT/.venv/bin/activate" ]; then
+    source "\$PROJECT_ROOT/.venv/bin/activate"
+    echo "Activated venv: \$(which python3)"
+else
+    echo "No .venv found, using system python3"
 fi
-# Launch
+
+# Launch — exec replaces the shell, so the app gets signals properly
 exec python3 -m qt_app.main
 LAUNCHER
 chmod +x "$APP_PATH/Contents/MacOS/$APP_NAME"
