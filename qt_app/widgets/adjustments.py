@@ -12,7 +12,8 @@ import numpy as np
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QWheelEvent
 from PySide6.QtWidgets import (
-    QComboBox, QGroupBox, QHBoxLayout, QLabel, QSlider, QVBoxLayout, QWidget,
+    QComboBox, QGroupBox, QHBoxLayout, QLabel, QPushButton, QSlider,
+    QVBoxLayout, QWidget,
 )
 
 from qt_app.state import PARAM_DEFAULTS, list_luts
@@ -213,7 +214,7 @@ def _build_slider_group(title: str, specs: list[tuple], panel) -> QGroupBox:
 
 
 def _build_lut_group(panel) -> QGroupBox:
-    """Build the LUT group: file dropdown + intensity slider."""
+    """Build the LUT group: file dropdown + pick button + intensity slider."""
     group = QGroupBox("LUT")
     layout = QVBoxLayout(group)
     layout.setContentsMargins(6, 10, 6, 6)
@@ -226,6 +227,12 @@ def _build_lut_group(panel) -> QGroupBox:
     panel._lut_combo.addItems(list_luts())
     panel._lut_combo.currentTextChanged.connect(lambda *_: panel._on_param_changed())
     row.addWidget(panel._lut_combo, 1)
+    # Pick button — opens LUT picker dialog with visual previews
+    pick_btn = QPushButton("…")
+    pick_btn.setFixedWidth(28)
+    pick_btn.setToolTip("Pick LUT from visual previews")
+    pick_btn.clicked.connect(panel._show_lut_picker)
+    row.addWidget(pick_btn)
     layout.addLayout(row)
 
     panel._intensity_slider = _LabeledSlider("Intensity", 0, 1, 1.0, 0.01, "{:.2f}")
@@ -243,6 +250,7 @@ class AdjustmentsPanel(QWidget):
     """Exposure | Contrast | WB | Saturation | LUT — one horizontal row."""
 
     paramsChanged = Signal(dict)
+    lutPickerRequested = Signal()  # user clicked the LUT pick button
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -349,3 +357,20 @@ class AdjustmentsPanel(QWidget):
         idx = self._lut_combo.findText(current)
         self._lut_combo.setCurrentIndex(idx if idx >= 0 else 0)
         self._lut_combo.blockSignals(False)
+
+    def _show_lut_picker(self) -> None:
+        """Emit signal — MainWindow opens the LUT picker with the live image."""
+        self.lutPickerRequested.emit()
+
+    def set_lut(self, lut_path: str) -> None:
+        """Set the LUT combo to the given path (called after picker selection)."""
+        if lut_path == "None":
+            self._lut_combo.setCurrentText("None")
+        else:
+            idx = self._lut_combo.findText(lut_path)
+            if idx >= 0:
+                self._lut_combo.setCurrentIndex(idx)
+            else:
+                # LUT not in list — add it
+                self._lut_combo.addItem(lut_path)
+                self._lut_combo.setCurrentText(lut_path)

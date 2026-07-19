@@ -196,6 +196,7 @@ class MainWindow(QMainWindow):
 
     def _connect_signals(self) -> None:
         self.adjustments.paramsChanged.connect(self._schedule_preview)
+        self.adjustments.lutPickerRequested.connect(self._show_lut_picker)
 
     def _reset_status(self) -> None:
         """Revert the status label to the device indicator."""
@@ -305,6 +306,30 @@ class MainWindow(QMainWindow):
             self.plots_panel.update_all(
                 self._orig_arr, self._live_arr, self._profile_arr, prof_name, params
             )
+
+    def _show_lut_picker(self) -> None:
+        """Open the LUT picker dialog with preview thumbnails."""
+        if not self._image_path:
+            self._set_status("Open an image first to pick a LUT.")
+            return
+        from qt_app.widgets.lut_picker import LutPickerDialog
+        from qt_app.workers import _load_preview_image
+        # Build base params WITHOUT LUT — each thumbnail adds its own LUT
+        params = params_from_values(self.adjustments.get_params())
+        params["lut_path"] = None
+        params["lut_intensity"] = 1.0
+        try:
+            img = _load_preview_image(self._image_path)
+        except Exception as exc:
+            self._set_status(f"⚠ Cannot load image: {exc}")
+            return
+        dialog = LutPickerDialog(img, params, self)
+        dialog.lutSelected.connect(self._on_lut_selected)
+        dialog.exec()
+
+    def _on_lut_selected(self, lut_path: str) -> None:
+        """Called when user picks a LUT from the picker dialog."""
+        self.adjustments.set_lut(lut_path)  # updates combo → triggers preview
 
     def _clear_preview_cache(self) -> None:
         """Clear the preview cache directory."""
