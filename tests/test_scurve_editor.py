@@ -115,9 +115,9 @@ def test_no_title_label(app):
 
 
 def test_canvas_min_height_compact(app):
-    """Canvas should be compact (min height ≤ 80)."""
+    """Canvas should be compact (min height ≤ 60)."""
     ed = SCurveEditor()
-    assert ed._canvas.minimumHeight() <= 80
+    assert ed._canvas.minimumHeight() <= 60
 
 
 def test_layout_margins_compact(app):

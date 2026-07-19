@@ -53,9 +53,9 @@ class SCurveEditor(QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
 
-        self._fig = Figure(figsize=(2.5, 1.8), facecolor=_BG)
+        self._fig = Figure(figsize=(2.5, 1.4), facecolor=_BG)
         self._canvas = FigureCanvasQTAgg(self._fig)
-        self._canvas.setMinimumHeight(70)
+        self._canvas.setMinimumHeight(55)
         # Enable mouse tracking so motion_notify_event fires during drag
         # (otherwise matplotlib only reports motion when no button is held).
         self._canvas.setMouseTracking(True)
