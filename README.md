@@ -69,7 +69,8 @@ Native Qt application — no browser needed.
 
 ## Profiles
 
-YAML profiles define all parameters. Edit or create new ones in `profiles/`.
+YAML profiles define all parameters. Create and edit them in `profiles/`
+(the directory is gitignored — profiles are user content). Example:
 
 ```yaml
 # profiles/my_look.yaml
@@ -123,9 +124,24 @@ python -m pipeline process ./input -o ./output \
 
 ## LUTs
 
-Place `.cube` files in the `luts/` directory. Supports both 1D and 3D LUTs with trilinear interpolation.
+Place `.cube` files in the `luts/` directory (create it if missing — it's
+gitignored since LUTs are user content). Supports both 1D and 3D LUTs with
+trilinear interpolation.
 
-See [`luts/README.md`](luts/README.md) for usage details.
+In a profile YAML:
+
+```yaml
+lut:
+  path: luts/my_lut.cube    # relative to project root
+  intensity: 0.8            # 0.0–1.0 blend with original
+```
+
+Or via CLI:
+
+```bash
+python -m pipeline process input/ -o output/ \
+  --lut luts/my_lut.cube --lut-intensity 0.8
+```
 
 ## Processing Order
 
@@ -183,8 +199,8 @@ photo-pipeline/
 │   ├── preview.py       # Before/after & grid previews
 │   ├── config.py        # YAML config loader with defaults
 │   └── ops/             # Individual operations (crop, exposure, etc.)
-├── profiles/            # YAML profiles
-├── luts/                # .cube LUT files
+├── profiles/            # YAML profiles (gitignored — user content)
+├── luts/                # .cube LUT files (gitignored — user content)
 ├── tests/               # pytest test suite
 ├── requirements.txt
 └── setup.sh
