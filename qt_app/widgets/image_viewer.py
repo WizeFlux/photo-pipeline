@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import numpy as np
 from PIL import Image
-from PySide6.QtCore import Qt, QPoint, QSize, Signal
+from PySide6.QtCore import Qt, QPoint, QSize, Signal, QTimer
 from PySide6.QtGui import QImage, QPixmap, QMouseEvent, QWheelEvent, QPainter
 from PySide6.QtWidgets import QFrame, QLabel
 
@@ -40,6 +40,12 @@ class ImageViewer(QLabel):
         self._pan: QPoint = QPoint(0, 0)
         self._drag_start: QPoint | None = None
         self._pan_start: QPoint | None = None
+        # Coalescing render timer — only the latest array gets rendered.
+        # This prevents the UI from stuttering when preview updates arrive
+        # faster than QPixmap scaling can complete.
+        self._render_timer = QTimer(self)
+        self._render_timer.setSingleShot(True)
+        self._render_timer.timeout.connect(self._deferred_render)
         self.setAlignment(Qt.AlignCenter)
         self.setMinimumSize(240, 180)
         self.setStyleSheet(
@@ -50,6 +56,13 @@ class ImageViewer(QLabel):
         self._show_title()
         # Enable mouse tracking for drag
         self.setMouseTracking(False)
+
+    def _deferred_render(self) -> None:
+        """Build QImage and render — called from the coalescing timer."""
+        if self._arr is None:
+            return
+        self._build_qimage()
+        self._render()
 
     def set_title(self, title: str) -> None:
         self._title = title
@@ -62,17 +75,25 @@ class ImageViewer(QLabel):
     # ── Public API ────────────────────────────────────────────────────────────
 
     def set_array(self, arr: np.ndarray | None) -> None:
-        """Display a (H, W, 3) uint8/float array. None clears the viewer."""
+        """Display a (H, W, 3) uint8/float array. None clears the viewer.
+
+        Rendering is deferred to the next event-loop tick so that rapid
+        slider updates don't block the UI on expensive QPixmap scaling.
+        Only the latest array is rendered — intermediate ones are coalesced.
+        """
         if arr is None:
             self._arr = None
             self._qimage = None
             self._image_bytes = None
+            self._render_timer.stop()
             self.clear()
             self._show_title()
             return
         self._arr = np.ascontiguousarray(arr, dtype=np.uint8)
-        self._build_qimage()
-        self._render()
+        # Coalesce: schedule a single render on the next event-loop tick.
+        # If a render is already pending, this just restarts the timer
+        # (cheaper than rendering every intermediate array).
+        self._render_timer.start(0)
 
     def set_pil(self, img: Image.Image) -> None:
         arr = np.array(img)
@@ -129,9 +150,11 @@ class ImageViewer(QLabel):
         target_w = int(rect.width() * dpr)
         target_h = int(rect.height() * dpr)
 
-        # Base size = fit-to-rect (aspect preserved), in device pixels
+        # Base size = fit-to-rect (aspect preserved), in device pixels.
+        # Use FastTransformation for interactive preview (bilinear is
+        # plenty at preview size and ~5x faster than SmoothTransformation).
         fit_pix = pix.scaled(
-            target_w, target_h, Qt.KeepAspectRatio, Qt.SmoothTransformation
+            target_w, target_h, Qt.KeepAspectRatio, Qt.FastTransformation
         )
         fit_pix.setDevicePixelRatio(dpr)
 
@@ -140,7 +163,7 @@ class ImageViewer(QLabel):
             zw = max(1, int(fit_pix.width() * self._zoom))
             zh = max(1, int(fit_pix.height() * self._zoom))
             fit_pix = fit_pix.scaled(zw, zh, Qt.KeepAspectRatio,
-                                     Qt.SmoothTransformation)
+                                     Qt.FastTransformation)
             fit_pix.setDevicePixelRatio(dpr)
 
         # If the zoomed pixmap fits in the rect (in CSS px), center it.
