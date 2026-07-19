@@ -6,10 +6,15 @@ a single Figure lives for the lifetime of the canvas, and we only clear+redraw
 its contents — no Figure object swapping, which can segfault when Python GC
 collects the old figure while Qt still references it during draw.
 
-Three plots, all dark-themed:
+Eight plots, all dark-themed:
   • draw_histograms_row  — 2 or 3 RGB+luminance histograms side by side
   • draw_channel_deltas  — per-channel histogram diffs (After − Original)
   • draw_tone_curve      — identity / live / profile curves
+  • draw_rgb_waveform    — IRE waveforms per channel (video-style)
+  • draw_vectorscope     — polar hue/saturation scope with skin-tone line
+  • draw_saturation_hist — HSV saturation distribution
+  • draw_zone_system     — Adams 11-zone tonal distribution bar chart
+  • draw_clipping_map    — 2D clipping heat map (shadows / highlights)
 """
 
 from __future__ import annotations
@@ -202,4 +207,328 @@ def draw_tone_curve(
     ax.set_ylim(0, 255)
     ax.legend(loc="upper left", framealpha=0.2, fontsize=7, labelcolor=_TEXT,
               edgecolor=_GRID)
+    fig.tight_layout(pad=0.5)
+
+
+# ─── RGB Waveform (video-style IRE monitor) ──────────────────────────────────
+
+def _rgb_to_hsv(arr: np.ndarray) -> np.ndarray:
+    """RGB (H,W,3) uint8/float → HSV (H,W,3) float. Vectorized, no cv2 dep."""
+    arr = np.asarray(arr, dtype=np.float32) / 255.0
+    r, g, b = arr[..., 0], arr[..., 1], arr[..., 2]
+    maxc = arr.max(axis=-1)
+    minc = arr.min(axis=-1)
+    delta = maxc - minc
+
+    # Value
+    v = maxc
+    # Saturation
+    s = np.where(maxc > 0, delta / np.maximum(maxc, 1e-8), 0.0)
+    # Hue — compute via safe division, then add offsets per dominant channel
+    safe_delta = np.where(delta > 0, delta, 1.0)  # avoid /0; result ignored where delta==0
+    rc = (maxc == r) & (delta > 0)
+    gc = (maxc == g) & (delta > 0)
+    bc = (maxc == b) & (delta > 0)
+    hue = np.zeros_like(maxc)
+    hue = np.where(rc, (g - b) / safe_delta, hue)
+    hue = np.where(gc, (b - r) / safe_delta + 2.0, hue)
+    hue = np.where(bc, (r - g) / safe_delta + 4.0, hue)
+    hue = (hue / 6.0) % 1.0
+    return np.stack([hue, s, v], axis=-1)
+
+
+def _downsample_col(arr: np.ndarray, target_cols: int = 256) -> np.ndarray:
+    """Downsample image columns by averaging — keeps spatial x-axis meaningful."""
+    h, w = arr.shape[:2]
+    if w <= target_cols:
+        return arr
+    # Average-pool along width
+    step = w // target_cols
+    return arr[:, :step * target_cols].reshape(h, target_cols, step, -1).mean(axis=2)
+
+
+def draw_rgb_waveform(
+    fig: Figure,
+    orig: np.ndarray,
+    live: np.ndarray,
+    profile: np.ndarray | None = None,
+    profile_name: str | None = None,
+) -> None:
+    """Draw per-channel IRE waveforms (video color-grading style).
+
+    For each column of the image, plots the luminance distribution vertically
+    (0 at bottom, 255 at top). R/G/B channels overlaid so you can see where
+    each channel concentrates and where clipping happens.
+    """
+    fig.clear()
+    fig.set_facecolor(_BG)
+
+    def _wave_on_ax(ax, arr: np.ndarray, title: str) -> None:
+        arr = np.asarray(arr, dtype=np.float32)
+        arr = _downsample_col(arr, 256)
+        h, w = arr.shape[:2]
+        bins = np.arange(256)
+        # Per-column histogram → (256, W) matrix
+        # Downsample rows if huge
+        if h > 200_000:
+            arr = arr[::2]
+            h = arr.shape[0]
+        # Build luminance per channel as 2D intensity: rows=brightness, cols=x
+        for ci, name in enumerate([("R", 0), ("G", 1), ("B", 2)]):
+            label, idx = name
+            chan = arr[..., idx].astype(np.int32)
+            # Column-wise histogram, normalized
+            intensity = np.zeros((256, w), dtype=np.float32)
+            for x in range(w):
+                col = chan[:, x]
+                h_x = np.bincount(col, minlength=256)[:256]
+                intensity[:, x] = h_x
+            # Normalize to 0..1 for overlay
+            mx = intensity.max()
+            if mx > 0:
+                intensity /= mx
+            ax.imshow(intensity, aspect="auto", origin="lower",
+                      extent=[0, w, 0, 255], cmap={"R": "Reds", "G": "Greens", "B": "Blues"}[label],
+                      alpha=0.55, vmin=0, vmax=1)
+        _style_axes(ax, title)
+        ax.set_ylim(0, 255)
+
+    n = 3 if profile is not None else 2
+    titles = ["Original", "Sliders"]
+    arrays = [orig, live]
+    if profile is not None:
+        titles.append(profile_name or "Profile")
+        arrays.append(profile)
+    for i, (title, arr) in enumerate(zip(titles, arrays)):
+        ax = fig.add_subplot(1, n, i + 1)
+        _wave_on_ax(ax, arr, title)
+    fig.tight_layout(pad=0.5)
+
+
+# ─── Vectorscope (polar hue/saturation with skin-tone line) ──────────────────
+
+def draw_vectorscope(
+    fig: Figure,
+    orig: np.ndarray,
+    live: np.ndarray,
+    profile: np.ndarray | None = None,
+    profile_name: str | None = None,
+) -> None:
+    """Draw polar vectorscopes (hue angle vs saturation radius).
+
+    Skin tones cluster around the 'skin tone line' at ~123° (YB axis in YUV).
+    Saturation increases outward; hue is the angle. Useful for matching color
+    grading across images and detecting color casts.
+    """
+    fig.clear()
+    fig.set_facecolor(_BG)
+
+    def _scope_on_ax(ax, arr: np.ndarray, title: str) -> None:
+        hsv = _rgb_to_hsv(arr)
+        h, s = hsv[..., 0].ravel(), hsv[..., 1].ravel()
+        # Downsample for performance
+        if h.size > 60_000:
+            idx = np.random.choice(h.size, 60_000, replace=False)
+            h, s = h[idx], s[idx]
+        # Filter out low-saturation pixels (gray noise in center)
+        mask = s > 0.05
+        h, s = h[mask], s[mask]
+        # Angle in degrees, 0 at right, counterclockwise
+        theta = h * 2 * np.pi
+        r = s
+        ax.scatter(theta, r, s=1.0, c=h, cmap="hsv", alpha=0.25, linewidths=0)
+        # Skin tone line: ~123° in YUV ≈ hue ~0.07-0.12 (orange) in HSV
+        skin_hue = 0.08  # approximate
+        for ang in [skin_hue * 2 * np.pi]:
+            ax.plot([ang, ang], [0, 1], color="#ffaa66", linewidth=1.0,
+                    linestyle="--", alpha=0.7)
+        ax.set_theta_zero_location("E")
+        ax.set_theta_direction(1)
+        ax.set_ylim(0, 1)
+        ax.set_title(title, color=_TEXT, fontsize=9, pad=8)
+        ax.set_facecolor(_PANEL)
+        ax.tick_params(colors=_MUTED, labelsize=6)
+        for spine in ax.spines.values():
+            spine.set_color(_GRID)
+            spine.set_linewidth(0.5)
+        ax.grid(True, color=_GRID, linewidth=0.4, alpha=0.6)
+
+    n = 3 if profile is not None else 2
+    titles = ["Original", "Sliders"]
+    arrays = [orig, live]
+    if profile is not None:
+        titles.append(profile_name or "Profile")
+        arrays.append(profile)
+    for i, (title, arr) in enumerate(zip(titles, arrays)):
+        ax = fig.add_subplot(1, n, i + 1, projection="polar")
+        _scope_on_ax(ax, arr, title)
+    fig.tight_layout(pad=0.5)
+
+
+# ─── Saturation histogram (HSV S-channel distribution) ───────────────────────
+
+def draw_saturation_hist(
+    fig: Figure,
+    orig: np.ndarray,
+    live: np.ndarray,
+    profile: np.ndarray | None = None,
+    profile_name: str | None = None,
+) -> None:
+    """Draw HSV saturation histograms (0 = gray, 1 = fully saturated)."""
+    fig.clear()
+    fig.set_facecolor(_BG)
+
+    def _sat_hist(arr: np.ndarray) -> np.ndarray:
+        hsv = _rgb_to_hsv(arr)
+        s = hsv[..., 1].ravel()
+        if s.size > 200_000:
+            s = s[np.random.choice(s.size, 200_000, replace=False)]
+        hist, _ = np.histogram(s, bins=50, range=(0, 1))
+        return hist
+
+    bins = np.linspace(0, 1, 50)
+    ax = fig.add_subplot(1, 1, 1)
+    _style_axes(ax, "Saturation Distribution")
+
+    h_orig = _sat_hist(orig)
+    ax.fill_between(bins, h_orig, alpha=0.25, color=_CURVE_ORIGINAL,
+                    label="Original")
+    ax.plot(bins, h_orig, color=_CURVE_ORIGINAL, linewidth=1.0)
+
+    h_live = _sat_hist(live)
+    ax.fill_between(bins, h_live, alpha=0.25, color=_CURVE_LIVE, label="Sliders")
+    ax.plot(bins, h_live, color=_CURVE_LIVE, linewidth=1.2)
+
+    if profile is not None:
+        h_prof = _sat_hist(profile)
+        ax.plot(bins, h_prof, color=_CURVE_PROFILE, linewidth=1.2,
+                linestyle="--", label=profile_name or "Profile")
+
+    ax.set_xlim(0, 1)
+    ax.legend(loc="upper right", framealpha=0.2, fontsize=7,
+              labelcolor=_TEXT, edgecolor=_GRID)
+    fig.tight_layout(pad=0.5)
+
+
+# ─── Zone System (Adams 11-zone tonal distribution) ──────────────────────────
+
+_ZONE_NAMES = ["0", "I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X"]
+_ZONE_COLORS = [
+    "#000000", "#1a1a1a", "#333333", "#4d4d4d", "#666666", "#808080",
+    "#999999", "#b3b3b3", "#cccccc", "#e6e6e6", "#ffffff",
+]
+
+
+def draw_zone_system(
+    fig: Figure,
+    orig: np.ndarray,
+    live: np.ndarray,
+    profile: np.ndarray | None = None,
+    profile_name: str | None = None,
+) -> None:
+    """Draw Adams 11-zone tonal distribution as grouped bar chart.
+
+    Zone 0 = pure black, Zone X = pure white. Shows how tones are distributed
+    across the dynamic range — classic photography tool.
+    """
+    fig.clear()
+    fig.set_facecolor(_BG)
+
+    def _zone_dist(arr: np.ndarray) -> np.ndarray:
+        arr = np.asarray(arr, dtype=np.float32)
+        lum = (0.299 * arr[..., 0] + 0.587 * arr[..., 1] + 0.114 * arr[..., 2]).ravel()
+        # Map 0-255 → 11 zones (0-10)
+        zones = np.clip((lum / 255.0 * 11).astype(int), 0, 10)
+        counts = np.bincount(zones, minlength=11)
+        return counts / counts.sum() * 100
+
+    ax = fig.add_subplot(1, 1, 1)
+    _style_axes(ax, "Zone System (Adams)")
+    ax.set_facecolor(_PANEL)
+
+    x = np.arange(11)
+    width = 0.28
+
+    z_orig = _zone_dist(orig)
+    z_live = _zone_dist(live)
+    z_prof = _zone_dist(profile) if profile is not None else None
+
+    # Bars colored by zone brightness
+    for i, zc in enumerate(_ZONE_COLORS):
+        ax.bar(i - width, z_orig[i], width=width, color=zc, edgecolor=_GRID,
+               linewidth=0.4)
+        ax.bar(i, z_live[i], width=width, color=zc, edgecolor=_CURVE_LIVE,
+               linewidth=1.2)
+        if z_prof is not None:
+            ax.bar(i + width, z_prof[i], width=width, color=zc,
+                   edgecolor=_CURVE_PROFILE, linewidth=1.2, alpha=0.7)
+
+    # Legend (manual since bars use zone colors)
+    from matplotlib.patches import Patch
+    handles = [
+        Patch(facecolor="#555", edgecolor=_GRID, label="Original"),
+        Patch(facecolor="#555", edgecolor=_CURVE_LIVE, label="Sliders"),
+    ]
+    if profile is not None:
+        handles.append(Patch(facecolor="#555", edgecolor=_CURVE_PROFILE,
+                             label=profile_name or "Profile"))
+    ax.legend(handles=handles, loc="upper right", framealpha=0.2, fontsize=7,
+              labelcolor=_TEXT, edgecolor=_GRID)
+
+    ax.set_xticks(x)
+    ax.set_xticklabels(_ZONE_NAMES, color=_TEXT, fontsize=8)
+    ax.set_xlim(-0.5, 10.5)
+    fig.tight_layout(pad=0.5)
+
+
+# ─── Clipping map (2D shadow/highlight loss visualization) ───────────────────
+
+def draw_clipping_map(
+    fig: Figure,
+    orig: np.ndarray,
+    live: np.ndarray,
+    profile: np.ndarray | None = None,
+    profile_name: str | None = None,
+) -> None:
+    """Draw 2D clipping maps: blue = lost shadows (<3), red = lost highlights (>252).
+
+    Spatial map showing WHERE detail is being clipped — critical for
+    avoiding blown highlights or crushed blacks during grading.
+    """
+    fig.clear()
+    fig.set_facecolor(_BG)
+
+    def _clip_map(arr: np.ndarray) -> np.ndarray:
+        """Returns (H, W, 3) RGB: black bg, blue shadows, red highlights."""
+        arr = np.asarray(arr, dtype=np.uint8)
+        out = np.zeros(arr.shape, dtype=np.float32)
+        # Shadow clip: any channel < 3
+        shadow = (arr.min(axis=-1) < 3)[..., None]
+        # Highlight clip: any channel > 252
+        highlight = (arr.max(axis=-1) > 252)[..., None]
+        # Blue for shadows, red for highlights, magenta if both
+        out[..., 0] = highlight[..., 0] * 0.9  # red
+        out[..., 2] = shadow[..., 0] * 0.9     # blue
+        # Where both → magenta (overwrite)
+        both = shadow & highlight
+        out[both[..., 0]] = [0.9, 0.0, 0.9]
+        return out
+
+    n = 3 if profile is not None else 2
+    titles = ["Original", "Sliders"]
+    arrays = [orig, live]
+    if profile is not None:
+        titles.append(profile_name or "Profile")
+        arrays.append(profile)
+    for i, (title, arr) in enumerate(zip(titles, arrays)):
+        ax = fig.add_subplot(1, n, i + 1)
+        m = _clip_map(arr)
+        ax.imshow(m, aspect="equal")
+        ax.set_title(title, color=_TEXT, fontsize=9, pad=4)
+        ax.set_xticklabels([])
+        ax.set_yticklabels([])
+        ax.tick_params(length=0)
+        for spine in ax.spines.values():
+            spine.set_color(_GRID)
+            spine.set_linewidth(0.5)
     fig.tight_layout(pad=0.5)

@@ -11,12 +11,23 @@ from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg
 from matplotlib.figure import Figure
 
 from qt_app.plots import (
-    draw_channel_deltas, draw_histograms_row, draw_tone_curve, make_empty_figure,
+    draw_channel_deltas, draw_clipping_map, draw_histograms_row,
+    draw_rgb_waveform, draw_saturation_hist, draw_tone_curve,
+    draw_vectorscope, draw_zone_system, make_empty_figure,
 )
 from qt_app.state import load_profile_params
 
 
-PLOT_TYPES = ["Histograms", "Channel Deltas", "Tone Curve"]
+PLOT_TYPES = [
+    "Histograms",
+    "Channel Deltas",
+    "Tone Curve",
+    "RGB Waveform",
+    "Vectorscope",
+    "Saturation Dist",
+    "Zone System",
+    "Clipping Map",
+]
 
 
 def _draw_plot(fig: Figure, plot_type: str, data: dict) -> None:
@@ -31,6 +42,26 @@ def _draw_plot(fig: Figure, plot_type: str, data: dict) -> None:
     elif plot_type == "Tone Curve":
         draw_tone_curve(
             fig, data["params"], data["third_params"], data["profile_name"]
+        )
+    elif plot_type == "RGB Waveform":
+        draw_rgb_waveform(
+            fig, data["orig"], data["live"], data["profile"], data["profile_name"]
+        )
+    elif plot_type == "Vectorscope":
+        draw_vectorscope(
+            fig, data["orig"], data["live"], data["profile"], data["profile_name"]
+        )
+    elif plot_type == "Saturation Dist":
+        draw_saturation_hist(
+            fig, data["orig"], data["live"], data["profile"], data["profile_name"]
+        )
+    elif plot_type == "Zone System":
+        draw_zone_system(
+            fig, data["orig"], data["live"], data["profile"], data["profile_name"]
+        )
+    elif plot_type == "Clipping Map":
+        draw_clipping_map(
+            fig, data["orig"], data["live"], data["profile"], data["profile_name"]
         )
 
 
