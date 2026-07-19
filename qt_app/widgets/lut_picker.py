@@ -148,7 +148,6 @@ class LutPickerDialog(QDialog):
         super().__init__(parent)
         self.setWindowTitle("Pick LUT")
         self.setModal(True)
-        self.setMinimumWidth(1800)
         self._image = image
         self._base_params = dict(base_params)
         self._lut_intensity = lut_intensity
@@ -169,7 +168,13 @@ class LutPickerDialog(QDialog):
         grid.setContentsMargins(4, 4, 4, 4)
 
         luts = list_luts()
-        cols = 4
+        cols = 3
+        # Width to fit 3 columns + spacing + scroll area margins + frame border
+        # 3 * _THUMB_W + 2 * grid spacing + 2 * grid margins + scroll margins + border
+        from qt_app.widgets.lut_picker import _THUMB_W
+        total_w = cols * _THUMB_W + (cols - 1) * 8 + 2 * 4 + 2 * 8 + 20
+        self.setMinimumWidth(total_w)
+        self.resize(total_w, 800)
         for i, lut in enumerate(luts):
             thumb = _LutThumb(lut)
             thumb.clicked.connect(self._on_thumb_clicked)
