@@ -15,16 +15,18 @@ from PySide6.QtWidgets import QVBoxLayout, QWidget
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg
 from matplotlib.figure import Figure
 
+from qt_app.theme import COLORS
 
-# Dark theme
-_BG = "#1e1e1e"
-_PANEL = "#232323"
-_GRID = "#3a3a3a"
-_TEXT = "#b0b0b0"
-_CURVE_COLOR = "#6fbfa8"       # teal — curve line
-_POINT_COLOR = "#6fbfa8"       # teal — inactive control points
-_POINT_ACTIVE = "#ff8c00"      # orange — active control point
-_POINT_EDGE = "#4a9888"        # teal edge for inactive points
+
+# Color constants — sourced from centralized theme palette
+_BG = COLORS["bg"]
+_PANEL = COLORS["panel"]
+_GRID = COLORS["grid"]
+_TEXT = COLORS["text_dim"]
+_CURVE_COLOR = COLORS["scurve_line"]       # teal — curve line
+_POINT_COLOR = COLORS["scurve_line"]       # teal — inactive control points
+_POINT_ACTIVE = COLORS["scurve_active"]    # orange — active control point
+_POINT_EDGE = COLORS["scurve_edge"]        # teal edge for inactive points
 
 
 class SCurveEditor(QWidget):

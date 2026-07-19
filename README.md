@@ -3,7 +3,9 @@
 Batch photo processing with LUTs, color grading, and format conversion.
 Native PySide6 desktop GUI with live preview, plus CLI for automation.
 
-Built for macOS (Apple Silicon) with optional GPU (MPS) acceleration.
+GPU acceleration via PyTorch (MPS / CUDA / CPU) with interactive
+S-Curve editor, LUT picker with visual previews, and real-time
+analysis plots.
 
 ## Quick Start
 
@@ -28,92 +30,117 @@ python -m pipeline analyze ./input
 
 ## Desktop GUI
 
-Native Qt application — no browser needed.
-
 ```
-┌─────────────────────────────────────────────────────────────┐
-│ [📂 Open] [📋 Profiles] [📁 Batch] [⚙ Settings]  [↺ Reset] │
-├──────────────────────┬──────────────────────────────────────┤
-│                      │  Exposure  Contrast  WB  Sat  LUT   │
-│   Before │ Live      │  Profiles  Batch                    │
-│   (synced zoom/pan)   ├──────────────────────────────────────┤
-│                      │  [Histograms ▾]  [Tone Curve ▾]      │
-│                      │  ┌────────────┬─────────────────┐    │
-│                      │  │  stats     │  plots          │    │
-└──────────────────────┴──────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────────┐
+│ [📂 Open] [📋 Profiles] [📁 Batch] [⚙ Settings]                 │
+│ [Preview profile: ▾] [☐ Plots]                  [⚙ CPU] [↺ Reset]│
+├──────────────────────┬───────────────────────────────────────────┤
+│                      │  Exposure  WB  Saturation  LUT  S-Curve   │
+│   Before │ Live      │  ┌─────────┬──────┬────────┬─────┬──────┐ │
+│   (synced zoom/pan)  │  │ EV/Hi/Sh│ Temp │ Sat/Vib│ File│ ╱╲   │ │
+│   Retina-aware       │  │ sliders │sliders│sliders│+pick│curve │ │
+│                      │  └─────────┴──────┴────────┴─────┴──────┘ │
+│                      ├───────────────────────────────────────────┤
+│                      │  [Histograms ▾]  [RGB Waveform ▾]         │
+│                      │  ┌────────────┬─────────────────┐         │
+│                      │  │  stats     │  plots (None=off)│        │
+└──────────────────────┴───────────────────────────────────────────┘
 ```
 
 **Features:**
 - Before/Live preview with synchronized zoom & pan (Retina/HiDPI-aware)
-- 14 adjustment parameters in 5 groups: Exposure, Contrast, WB, Saturation, LUT
+- Exposure (EV, highlights, shadows) + WB + Saturation sliders
+- **Interactive S-Curve editor** — 5 draggable control points, Catmull-Rom
+  spline, mouse wheel control (inverted, 1 IRE resolution)
+- **LUT picker** — visual preview thumbnails (640×480, Retina-aware,
+  LANCZOS) of all available LUTs applied to the current image with
+  current slider settings + lut_intensity
+- 8 analysis plots: Histograms, Channel Deltas, Tone Curve, RGB
+  Waveform (white bg), Vectorscope, Saturation Histogram, Zone System,
+  Clipping Map — or "None" to hide either panel
 - Optional 3rd profile overlay for comparison
-- Live histograms, channel deltas, and tone curve plots
-- Image statistics (brightness, median, percentiles, channel ratios)
-- Profile save/load/delete (YAML)
+- Plots toggle checkbox in toolbar (moved from Settings)
+- Profile save/load (YAML, including custom S-Curve)
 - Batch processing with GPU acceleration
-- Adjustable preview quality and max width (Settings)
+- Coalescing render timers — UI stays responsive during rapid slider
+  changes (workers terminated, not waited on; plots throttled 350ms)
 
-## Features
+## S-Curve Editor
+
+The interactive S-Curve editor replaces the old contrast/gamma/s_curve/
+black_point/white_point sliders. It provides direct tone shaping with
+5 control points at x = 0, 64, 128, 192, 255.
+
+- **Drag** points with mouse to shape the curve
+- **Scroll wheel** over the editor to move the active point
+  (inverted: scroll up = decrease, 1 IRE per notch)
+- Inactive points: **teal** (#6fbfa8) · Active point: **orange** (#ff8c00)
+- Curve: Catmull-Rom spline → 256-entry LUT applied after exposure
+- Custom curve saved/loaded in YAML profiles (`scurve_custom` key)
+
+## LUT Picker
+
+Click the **"…"** button next to the LUT file dropdown to open the
+picker dialog:
+
+- 3-column grid of 640×480 thumbnails (Retina-aware)
+- Each thumbnail = current image + all slider settings + that LUT at
+  current lut_intensity
+- Thumbnails rendered in parallel background threads
+- Click a thumbnail to select that LUT
+- LANCZOS resampling for high quality
+
+## Adjustment Parameters
 
 | Operation | Parameters | Range |
 |---|---|---|
-| **Crop** | aspect_ratio, gravity, offset | 4:3, 16:9, 1:1, custom |
-| **Exposure** | EV, gamma, highlights, shadows | ±3 EV, 0.5–2.5 gamma |
-| **Contrast** | linear, S-curve, black/white point | -100 to 100 |
-| **White Balance** | temperature, tint, presets | -100 to 100 |
+| **Exposure** | EV, highlights, shadows | ±3 EV, ±100 |
+| **S-Curve** | 5 control points (interactive) | 0–255 per point |
+| **White Balance** | temperature, tint | -100 to 100 |
 | **Saturation** | global, vibrance (skin-aware) | -100 to 100 |
 | **LUT** | .cube 3D LUTs with intensity blend | 0.0–1.0 |
-| **Vignette** | amount, size, feather, roundness | -100 to 100 |
-| **Grain** | amount, size, monochrome/color | 0–100 |
-| **Output** | resize, WebP/JPEG/AVIF/TIFF | quality 1–100 |
+
+*Contrast group (gamma, contrast_amount, s_curve, black_point,
+white_point) removed from UI — replaced by the interactive S-Curve
+editor. Values still exist in PARAM_DEFAULTS for processing.*
 
 ## Profiles
 
-YAML profiles define all parameters. Create and edit them in `profiles/`
-(the directory is gitignored — profiles are user content). Example:
+YAML profiles define all parameters, including custom S-Curve. Create
+and edit them in `profiles/` (gitignored — user content).
 
 ```yaml
 # profiles/my_look.yaml
-crop:
-  aspect_ratio: "4:3"
-
 exposure:
   ev: -0.3
   shadows: 15
-
 contrast:
-  amount: 15
-  s_curve: 30
-
+  amount: 0       # neutral (S-Curve handles contrast)
+  s_curve: 0
+  black_point: 0
+  white_point: 255
 white_balance:
   temperature: 12
-
+saturation:
+  amount: 10
+  vibrance: 15
 lut:
-  path: luts/warm_film.cube
+  path: luts/warm.cube
   intensity: 0.8
-
-vignette:
-  amount: -25
-
-grain:
-  amount: 15
-  size: 2
-
-output:
-  width: 1920
-  format: webp
-  quality: 90
+scurve_custom:    # 256 y-values (optional)
+  - 0.0
+  - 1.0
+  - 2.0
+  # ... 256 entries
+  - 255.0
 ```
 
 ## CLI Overrides
-
-Any profile parameter can be overridden on the command line:
 
 ```bash
 python -m pipeline process ./input -o ./output \
   -p profiles/cinematic.yaml \
   --exposure 0.5 \
-  --contrast 20 \
   --temperature 15 \
   --lut luts/my_lut.cube \
   --lut-intensity 0.7 \
@@ -124,39 +151,34 @@ python -m pipeline process ./input -o ./output \
 
 ## LUTs
 
-Place `.cube` files in the `luts/` directory (create it if missing — it's
-gitignored since LUTs are user content). Supports both 1D and 3D LUTs with
-trilinear interpolation.
-
-In a profile YAML:
-
-```yaml
-lut:
-  path: luts/my_lut.cube    # relative to project root
-  intensity: 0.8            # 0.0–1.0 blend with original
-```
-
-Or via CLI:
-
-```bash
-python -m pipeline process input/ -o output/ \
-  --lut luts/my_lut.cube --lut-intensity 0.8
-```
+Place `.cube` files in `luts/`. Supports 1D and 3D LUTs with trilinear
+interpolation. Demo LUTs included: `warm`, `cool`, `contrast`, `faded`,
+`bw`, `teal_orange`, `neutral`.
 
 ## Processing Order
 
 ```
-crop → exposure → contrast → white_balance → saturation → LUT → vignette → grain → resize → save
+exposure → S-Curve (custom or sigmoid) → white_balance → saturation → LUT
 ```
 
 ## GPU Acceleration
 
-Uses PyTorch with the best available backend:
+PyTorch with the best available backend:
 - **MPS** (Apple Silicon) — default on M1/M2/M3
 - **CUDA** — if available
-- **CPU** — fallback
+- **CPU** — fallback (threads limited to 3 to avoid worker contention)
 
-Large images (>50MP) are processed in strips to avoid memory overflow.
+Large images (>50MP) processed in strips to avoid memory overflow.
+
+## Performance Architecture
+
+- **PreviewWorker** — runs in background thread, old workers terminated
+  (not waited on) to keep UI responsive during rapid slider changes
+- **PlotsWorker** — parallel to preview, plots rendered after 350ms
+  throttle to avoid ~900ms UI freezes on heavy plots
+- **ImageViewer** — coalescing render timer (QTimer 0ms), FastTransformation
+  for preview scaling
+- **LUT picker** — parallel thumbnail generation in background threads
 
 ## Tests
 
@@ -164,20 +186,29 @@ Large images (>50MP) are processed in strips to avoid memory overflow.
 python -m pytest tests/ -v
 ```
 
-126 tests covering:
-- `test_crop.py` — aspect ratio parsing, gravity, offset
+224 tests covering:
+- `test_crop.py` — aspect ratio, gravity, offset
 - `test_exposure.py` — EV, gamma, highlights, shadows, clipping
 - `test_contrast.py` — linear, S-curve, black/white points
-- `test_white_balance.py` — temperature (warm/cool), tint (magenta/green)
-- `test_saturation.py` — global saturation, vibrance, HSL roundtrip
-- `test_effects.py` — vignette, grain, resize & save (JPEG/WebP/PNG/quality)
+- `test_white_balance.py` — temperature, tint
+- `test_saturation.py` — saturation, vibrance, HSL roundtrip
+- `test_effects.py` — vignette, grain, resize & save
 - `test_lut.py` — 3D LUT parsing, identity, intensity blend
-- `test_pipeline.py` — config merge, overrides, end-to-end processing
-- `test_processor_advanced.py` — strip processing, RGB conversion, directory
-- `test_preview.py` — before/after side-by-side, grid generation
-- `test_cli.py` — all CLI commands (process/preview/grid/analyze) via CliRunner
-- `test_state.py` — params mapping, profile I/O, tone curves, image stats
-- `test_plots.py` — all 8 plot types render without error (2 and 3 panel)
+- `test_pipeline.py` — config merge, overrides, end-to-end
+- `test_processor_advanced.py` — strip processing, RGB, directory
+- `test_preview.py` — before/after, grid generation
+- `test_cli.py` — all CLI commands
+- `test_state.py` — params mapping, profile I/O, S-Curve save/load
+- `test_plots.py` — all 8 plot types, None option
+- `test_plots_worker.py` — parallel plot generation
+- `test_plots_panel_none.py` — None selector, throttle timer
+- `test_plots_checkbox.py` — toolbar Plots toggle
+- `test_scurve_editor.py` — drag, wheel, colors, set_curve_from_y
+- `test_custom_scurve.py` — custom curve in gpu_process
+- `test_slider_wheel.py` — inverted scroll, modifiers
+- `test_lut_picker.py` — thumbnails, Retina DPR, intensity
+- `test_image_viewer_coalesce.py` — coalescing render timer
+- `test_worker_detach.py` — non-blocking worker termination
 
 ## Project Structure
 
@@ -185,24 +216,29 @@ python -m pytest tests/ -v
 photo-pipeline/
 ├── qt_app/              # PySide6 desktop GUI
 │   ├── main.py          # Entry point
-│   ├── main_window.py   # Main window layout
-│   ├── state.py         # Pure logic (no Qt) — params, profiles, stats
-│   ├── workers.py       # Background processing threads
-│   ├── plots.py         # Matplotlib render functions
+│   ├── main_window.py   # Main window, toolbar, worker management
+│   ├── state.py         # Params, profiles, LUT discovery (no Qt)
+│   ├── workers.py       # Background threads (Preview, Plots)
+│   ├── plots.py         # Matplotlib render functions (8 plot types)
 │   ├── theme.py         # Dark theme QSS
-│   └── widgets/         # Reusable UI components
+│   └── widgets/
+│       ├── adjustments.py    # Slider groups + S-Curve + LUT picker btn
+│       ├── scurve_editor.py  # Interactive S-Curve (5 control points)
+│       ├── image_viewer.py   # Zoom/pan image display (Retina-aware)
+│       ├── plots_panel.py    # Dual plot panels with selectors
+│       ├── lut_picker.py     # LUT picker dialog (visual previews)
+│       └── dialogs.py        # Settings, Profiles, Batch dialogs
 ├── pipeline/            # Core processing library
-│   ├── cli.py           # Click-based CLI
+│   ├── cli.py           # Click CLI
 │   ├── processor.py     # Pipeline orchestrator
-│   ├── batch.py         # Multiprocessing batch processor
-│   ├── gpu_ops.py       # GPU-accelerated operations (PyTorch)
+│   ├── batch.py         # Multiprocessing batch
+│   ├── gpu_ops.py       # GPU operations (PyTorch)
 │   ├── preview.py       # Before/after & grid previews
-│   ├── config.py        # YAML config loader with defaults
-│   └── ops/             # Individual operations (crop, exposure, etc.)
-├── profiles/            # YAML profiles (gitignored — user content)
-├── luts/                # .cube LUT files (gitignored — user content)
-├── tests/               # pytest test suite
-├── requirements.txt
+│   ├── config.py        # YAML config loader
+│   └── ops/             # Individual operations
+├── profiles/            # YAML profiles (gitignored)
+├── luts/                # .cube LUT files (7 demo LUTs)
+├── tests/               # 224 tests
 └── setup.sh
 ```
 
@@ -210,4 +246,4 @@ photo-pipeline/
 
 - Python 3.10+
 - macOS / Linux / Windows
-- All dependencies installed via `setup.sh` into local `.venv/`
+- PySide6, PyTorch, matplotlib, PIL, NumPy, PyYAML, Click

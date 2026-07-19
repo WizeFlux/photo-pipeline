@@ -44,6 +44,24 @@ from qt_app.workers import BatchWorker, PlotsWorker, PreviewWorker
 _THROTTLE_MS = 250
 
 
+def _terminate_worker(worker, signal) -> None:
+    """Terminate a QThread-based worker: disconnect signal + terminate thread.
+
+    Shared by _run_preview (PreviewWorker) and _start_plots_worker (PlotsWorker).
+    Does NOT wait — the old thread dies in the background, freeing CPU for the
+    new worker. The signal is disconnected so stale results can't update the UI.
+    """
+    import warnings
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        try:
+            signal.disconnect()
+        except (RuntimeError, TypeError):
+            pass
+    if worker.isRunning():
+        worker.terminate()
+
+
 class MainWindow(QMainWindow):
     """Top-level window orchestrating all panels."""
 
@@ -483,23 +501,10 @@ class MainWindow(QMainWindow):
         self._pending_final = False
 
         # Detach any in-flight preview worker — terminate it immediately
-        # so it stops consuming CPU/torch threads. requestInterruption()
-        # only sets a flag that's checked between heavy ops, so the old
-        # worker would keep running for ~80ms (a full gpu_process call).
-        # terminate() kills the thread at the OS level, freeing CPU for
-        # the new worker. The old worker's signal is already disconnected
-        # so it can't update the UI even if it somehow finishes.
+        # so it stops consuming CPU/torch threads. The old worker's signal
+        # is disconnected so it can't update the UI even if it finishes.
         if self._preview_worker is not None:
-            old = self._preview_worker
-            import warnings
-            with warnings.catch_warnings():
-                warnings.simplefilter("ignore")
-                try:
-                    old.finished_preview.disconnect()
-                except (RuntimeError, TypeError):
-                    pass
-            if old.isRunning():
-                old.terminate()  # kill immediately, don't wait
+            _terminate_worker(self._preview_worker, self._preview_worker.finished_preview)
 
         params = self.adjustments.get_params()
         third = self.third_profile_combo.currentText()
@@ -535,16 +540,7 @@ class MainWindow(QMainWindow):
     def _start_plots_worker(self, orig, live, profile) -> None:
         """Terminate any in-flight plots worker and start a new one. No waiting."""
         if self._plots_worker is not None:
-            old = self._plots_worker
-            import warnings
-            with warnings.catch_warnings():
-                warnings.simplefilter("ignore")
-                try:
-                    old.plots_ready.disconnect()
-                except (RuntimeError, TypeError):
-                    pass
-            if old.isRunning():
-                old.terminate()
+            _terminate_worker(self._plots_worker, self._plots_worker.plots_ready)
         params = params_from_values(self.adjustments.get_params())
         prof_name = self.third_profile_combo.currentText()
         if prof_name == "None":

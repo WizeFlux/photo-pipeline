@@ -1,4 +1,40 @@
-"""Dark theme stylesheet for the application."""
+"""Dark theme stylesheet for the application.
+
+Centralized color palette + QSS stylesheet. Import COLORS from here
+instead of hardcoding hex values across widgets.
+"""
+
+# ─── Centralized color palette ─────────────────────────────────────────────
+# Import this in widgets instead of hardcoding hex values:
+#   from qt_app.theme import COLORS
+COLORS = {
+    "bg":          "#1e1e1e",   # main background
+    "bg_dark":     "#181818",   # status bar
+    "panel":       "#232323",   # plot panel background
+    "border":      "#2a2a2a",   # subtle borders
+    "border_light": "#333333",  # slightly lighter borders
+    "grid":        "#3a3a3a",   # grid lines
+    "text":        "#e0e0e0",   # main text
+    "text_dim":    "#b0b0b0",   # secondary text
+    "text_faint":  "#888888",   # faint labels
+    "accent":      "#00d4aa",   # primary accent (teal)
+    "accent_hover": "#00f0c0",  # accent on hover
+    "accent_dark":  "#00705a",  # accent pressed/sub-page
+    # S-Curve specific
+    "scurve_line":  "#6fbfa8",  # teal — curve + inactive points
+    "scurve_edge":  "#4a9888",  # teal edge for inactive points
+    "scurve_active": "#ff8c00", # orange — active point
+    "scurve_active_edge": "#cc7000",
+    # Image viewer
+    "viewer_bg":    "#141414",
+    "viewer_border": "#2a2a2a",
+    # LUT picker
+    "thumb_bg":     "#1a1a1a",
+    "thumb_border": "#333333",
+    "thumb_hover":  "#ff8c00",
+    "thumb_label_bg": "#222222",
+}
+
 
 DARK_QSS = """
 QWidget {
