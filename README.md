@@ -148,6 +148,21 @@ Large images (>50MP) are processed in strips to avoid memory overflow.
 python -m pytest tests/ -v
 ```
 
+126 tests covering:
+- `test_crop.py` — aspect ratio parsing, gravity, offset
+- `test_exposure.py` — EV, gamma, highlights, shadows, clipping
+- `test_contrast.py` — linear, S-curve, black/white points
+- `test_white_balance.py` — temperature (warm/cool), tint (magenta/green)
+- `test_saturation.py` — global saturation, vibrance, HSL roundtrip
+- `test_effects.py` — vignette, grain, resize & save (JPEG/WebP/PNG/quality)
+- `test_lut.py` — 3D LUT parsing, identity, intensity blend
+- `test_pipeline.py` — config merge, overrides, end-to-end processing
+- `test_processor_advanced.py` — strip processing, RGB conversion, directory
+- `test_preview.py` — before/after side-by-side, grid generation
+- `test_cli.py` — all CLI commands (process/preview/grid/analyze) via CliRunner
+- `test_state.py` — params mapping, profile I/O, tone curves, image stats
+- `test_plots.py` — all 8 plot types render without error (2 and 3 panel)
+
 ## Project Structure
 
 ```

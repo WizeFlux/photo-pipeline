@@ -38,10 +38,12 @@ def resize_and_save(
         "avif": ".avif",
         "tiff": ".tiff",
         "tif": ".tiff",
+        "png": ".png",
     }
     ext = ext_map.get(fmt, ".jpg")
     output_path = Path(output_path)
-    if output_path.suffix.lower() not in [".jpg", ".jpeg", ".webp", ".avif", ".tiff", ".tif"]:
+    valid_suffixes = [".jpg", ".jpeg", ".webp", ".avif", ".tiff", ".tif", ".png"]
+    if output_path.suffix.lower() not in valid_suffixes:
         output_path = output_path.with_suffix(ext)
 
     # Resize if needed
@@ -69,6 +71,7 @@ def resize_and_save(
         "avif": "AVIF",
         "tiff": "TIFF",
         "tif": "TIFF",
+        "png": "PNG",
     }.get(fmt, "JPEG")
 
     save_kwargs = {}
