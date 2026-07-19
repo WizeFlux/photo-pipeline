@@ -8,6 +8,7 @@ The most recently moved slider is highlighted orange (`set_active`).
 
 from __future__ import annotations
 
+import numpy as np
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QWheelEvent
 from PySide6.QtWidgets import (
@@ -15,6 +16,7 @@ from PySide6.QtWidgets import (
 )
 
 from qt_app.state import PARAM_DEFAULTS, list_luts
+from qt_app.widgets.scurve_editor import SCurveEditor
 
 
 # ─── Compact QSS ─────────────────────────────────────────────────────────────
@@ -252,7 +254,16 @@ class AdjustmentsPanel(QWidget):
         self._lut_combo: QComboBox | None = None
         self._intensity_slider: _LabeledSlider | None = None
         self._active_slider: _LabeledSlider | None = None
+        self._active_scurve: SCurveEditor | None = None
+        self._scurve_y: np.ndarray | None = None  # custom curve, None = use params
         self._build()
+        # Connect S-Curve editor: store custom curve + emit params
+        self.scurve.curveChanged.connect(self._on_scurve_changed)
+        self._emit_params()
+
+    def _on_scurve_changed(self, curve_y: np.ndarray) -> None:
+        """Store the custom S-Curve and emit updated params."""
+        self._scurve_y = curve_y
         self._emit_params()
 
     def _build(self) -> None:
@@ -264,23 +275,45 @@ class AdjustmentsPanel(QWidget):
         layout.addWidget(_build_slider_group("WB", _WB_SPECS, self), 1)
         layout.addWidget(_build_slider_group("Saturation", _SAT_SPECS, self), 1)
         layout.addWidget(_build_lut_group(self), 1)
+        # 6th column: interactive S-Curve editor
+        self.scurve = SCurveEditor()
+        self.scurve.activated.connect(self._set_active_widget)
+        layout.addWidget(self.scurve, 1)
 
     def _on_param_changed(self, *_args) -> None:
         self._emit_params()
 
     def _set_active_slider(self, slider: _LabeledSlider) -> None:
         """Highlight the most-recently grabbed slider in orange."""
-        if self._active_slider is slider:
-            return
+        self._clear_active()
+        self._active_slider = slider
+        self._active_scurve = None
+        slider.set_active(True)
+
+    def _set_active_widget(self, widget) -> None:
+        """Highlight either a slider or the S-Curve editor."""
+        self._clear_active()
+        if isinstance(widget, _LabeledSlider):
+            self._active_slider = widget
+            self._active_scurve = None
+        else:
+            self._active_scurve = widget
+            self._active_slider = None
+        widget.set_active(True)
+
+    def _clear_active(self) -> None:
         if self._active_slider is not None:
             self._active_slider.set_active(False)
-        self._active_slider = slider
-        slider.set_active(True)
+            self._active_slider = None
+        if self._active_scurve is not None:
+            self._active_scurve.set_active(False)
+            self._active_scurve = None
 
     def _emit_params(self) -> None:
         params = {key: slider.value() for key, slider in self._sliders.items()}
         params["lut_path"] = self._lut_combo.currentText()
         params["lut_intensity"] = self._intensity_slider.value()
+        params["scurve_custom"] = self._scurve_y  # None or 256 y-values
         self.paramsChanged.emit(params)
 
     # ── Public API ────────────────────────────────────────────────────────────
@@ -289,6 +322,7 @@ class AdjustmentsPanel(QWidget):
         params = {key: slider.value() for key, slider in self._sliders.items()}
         params["lut_path"] = self._lut_combo.currentText()
         params["lut_intensity"] = self._intensity_slider.value()
+        params["scurve_custom"] = self._scurve_y
         return params
 
     def set_params(self, params: dict) -> None:
@@ -305,6 +339,8 @@ class AdjustmentsPanel(QWidget):
 
     def reset(self) -> None:
         self.set_params(PARAM_DEFAULTS)
+        self._scurve_y = None
+        self.scurve.reset()
         self._emit_params()
 
     def refresh_luts(self) -> None:

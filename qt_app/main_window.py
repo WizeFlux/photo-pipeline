@@ -35,7 +35,7 @@ from qt_app.widgets.adjustments import AdjustmentsPanel
 from qt_app.widgets.dialogs import BatchDialog, ProfilesDialog, SettingsDialog
 from qt_app.widgets.image_viewer import ImageViewer
 from qt_app.widgets.plots_panel import PlotsPanel
-from qt_app.workers import BatchWorker, PreviewWorker
+from qt_app.workers import BatchWorker, PlotsWorker, PreviewWorker
 
 
 # Throttle interval: while dragging a slider, the preview is regenerated at
@@ -57,6 +57,7 @@ class MainWindow(QMainWindow):
         self._live_arr = None
         self._profile_arr = None
         self._preview_worker: PreviewWorker | None = None
+        self._plots_worker: PlotsWorker | None = None
         self._batch_worker: BatchWorker | None = None
         # Throttle: render immediately on first change, then at most once per
         # _THROTTLE_MS. A trailing render guarantees the final state is shown.
@@ -465,6 +466,7 @@ class MainWindow(QMainWindow):
         self._orig_arr = orig
         self._live_arr = live
         self._profile_arr = profile
+        # Update viewers immediately — preview is ready, don't wait for plots
         self.viewer_original.set_array(orig)
         self.viewer_live.set_array(live)
         if profile is not None:
@@ -474,12 +476,42 @@ class MainWindow(QMainWindow):
         else:
             self.viewer_profile.set_array(None)
             self.viewer_profile.set_title("Profile")
+        self._set_status(f"⏱ {elapsed:.2f}s")
+
+        # Launch plots worker in parallel — don't block the UI thread.
+        # Plots update as soon as they're computed, independently of preview.
+        self._start_plots_worker(orig, live, profile)
+
+    def _start_plots_worker(self, orig, live, profile) -> None:
+        """Cancel any in-flight plots worker and start a new one."""
+        if self._plots_worker is not None:
+            old = self._plots_worker
+            old.requestInterruption()
+            if old.isRunning():
+                old.wait(500)
         params = params_from_values(self.adjustments.get_params())
         prof_name = self.third_profile_combo.currentText()
         if prof_name == "None":
             prof_name = None
-        self.plots_panel.update_all(orig, live, profile, prof_name, params)
-        self._set_status(f"⏱ {elapsed:.2f}s")
+        third_params = None
+        if prof_name:
+            third_params = load_profile_params(prof_name)
+        self._plots_worker = PlotsWorker(
+            orig, live, profile, prof_name, params, third_params
+        )
+        self._plots_worker.plots_ready.connect(self._on_plots_ready)
+        self._plots_worker.failed.connect(self._on_plots_failed)
+        self._plots_worker.start()
+
+    def _on_plots_ready(self, bundle: dict) -> None:
+        """Plots data computed — now render onto canvases (fast, UI thread)."""
+        self.plots_panel.update_all(
+            bundle["orig"], bundle["live"], bundle["profile"],
+            bundle["profile_name"], bundle["params"],
+        )
+
+    def _on_plots_failed(self, msg: str) -> None:
+        self._set_status(f"⚠ Plots error: {msg}")
 
     def _on_preview_failed(self, msg: str) -> None:
         self._set_status(f"⚠ Preview error: {msg}")

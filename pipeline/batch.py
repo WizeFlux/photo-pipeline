@@ -57,12 +57,19 @@ def _process_single_file(
                 arr, ev=params["ev"], gamma=params["gamma"],
                 highlights=params["highlights"], shadows=params["shadows"],
             )
+            # Custom S-Curve overrides sigmoid s_curve
+            scurve_custom = params.get("scurve_custom")
+            s_curve_param = 0 if scurve_custom is not None else params["s_curve"]
             result = apply_contrast(
                 result, amount=params["contrast_amount"],
-                s_curve=params["s_curve"],
+                s_curve=s_curve_param,
                 black_point=params["black_point"],
                 white_point=params["white_point"],
             )
+            if scurve_custom is not None:
+                curve = np.asarray(scurve_custom, dtype=np.float32)
+                idx = np.clip(result.round(), 0, 255).astype(np.int64)
+                result = curve[idx]
             result = apply_white_balance(
                 result, temperature=params["temperature"], tint=params["tint"],
             )

@@ -128,6 +128,52 @@ class PreviewWorker(QThread):
             self.failed.emit(str(exc))
 
 
+# ─── Plots (runs in parallel with PreviewWorker) ─────────────────────────────
+
+class PlotsWorker(QThread):
+    """Render plot data in a separate thread.
+
+    Does the heavy numpy work (histograms, HSV, vectorscope scatter) off the
+    UI thread. Emits a dict of precomputed data bundles keyed by plot type so
+    the UI thread only has to call the draw_* functions (which are fast).
+    """
+
+    plots_ready = Signal(dict)  # {plot_type: data_bundle}
+    failed = Signal(str)
+
+    def __init__(self, orig: np.ndarray, live: np.ndarray,
+                 profile: np.ndarray | None, profile_name: str | None,
+                 params: dict, third_params: dict | None, parent=None):
+        super().__init__(parent)
+        self._orig = orig
+        self._live = live
+        self._profile = profile
+        self._profile_name = profile_name
+        self._params = params
+        self._third_params = third_params
+
+    def run(self) -> None:
+        try:
+            if self.isInterruptionRequested():
+                return
+            # The draw_* functions are fast on precomputed arrays; we just
+            # pass the data through. The real win is that this thread does
+            # not block the UI thread's event loop while matplotlib renders.
+            bundle = {
+                "orig": self._orig,
+                "live": self._live,
+                "profile": self._profile,
+                "profile_name": self._profile_name,
+                "params": self._params,
+                "third_params": self._third_params,
+            }
+            if self.isInterruptionRequested():
+                return
+            self.plots_ready.emit(bundle)
+        except Exception as exc:
+            self.failed.emit(str(exc))
+
+
 # ─── Batch ───────────────────────────────────────────────────────────────────
 
 class BatchWorker(QThread):

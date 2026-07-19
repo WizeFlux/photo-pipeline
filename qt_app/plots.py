@@ -286,7 +286,11 @@ def draw_rgb_waveform(
         if h > 100_000:
             arr = arr[::2]
             h = arr.shape[0]
+        # White background — RGB channels painted on top with additive blend
+        ax.set_facecolor("#f0f0f0")
         # RGB parade: 3 sub-panels within this axes's slot — R | G | B
+        channel_rgb = {"R": (1.0, 0.0, 0.0), "G": (0.0, 0.7, 0.0),
+                       "B": (0.0, 0.2, 1.0)}
         for ci, label in enumerate(["R", "G", "B"]):
             chan = arr[..., ci].astype(np.int32)
             # Build column-wise histogram intensity matrix (256 x W)
@@ -297,22 +301,28 @@ def draw_rgb_waveform(
             # Gamma-stretch for visibility: low counts become visible
             mx = intensity.max()
             if mx > 0:
-                intensity = (intensity / mx) ** 0.5  # sqrt gamma → brighter lows
+                intensity = (intensity / mx) ** 0.5  # sqrt gamma
+            # Build an RGBA image: channel color × intensity on white bg
+            r_c, g_c, b_c = channel_rgb[label]
+            inten = intensity  # (256, w)
+            rgba = np.zeros((256, w, 3), dtype=np.float32)
+            # White background where intensity=0, channel color where intensity=1
+            rgba[..., 0] = 1.0 * (1 - inten) + r_c * inten
+            rgba[..., 1] = 1.0 * (1 - inten) + g_c * inten
+            rgba[..., 2] = 1.0 * (1 - inten) + b_c * inten
             # Sub-axes: 3 vertical strips inside this slot
             sub = ax.inset_axes([(ci / 3) + 0.005, 0.0, (1 / 3) - 0.01, 1.0])
-            sub.imshow(intensity, aspect="auto", origin="lower",
-                       extent=[0, w, 0, 255], cmap={"R": "magma", "G": "viridis",
-                                                     "B": "cividis"}[label],
-                       vmin=0, vmax=1.0)
+            sub.imshow(rgba, aspect="auto", origin="lower",
+                       extent=[0, w, 0, 255])
             sub.set_xticklabels([])
             sub.set_yticklabels([])
             sub.tick_params(length=0)
             for sp in sub.spines.values():
-                sp.set_color(_GRID)
+                sp.set_color("#888")
                 sp.set_linewidth(0.5)
             # Channel label at top of each strip
-            sub.set_title(label, color=_CHANNEL_COLORS[label], fontsize=8,
-                          pad=2, loc="left")
+            sub.set_title(label, color=channel_rgb[label], fontsize=8,
+                          pad=2, loc="left", fontweight="bold")
         # Parent axes: just frame + main title, no grid lines
         ax.set_xticklabels([])
         ax.set_yticklabels([])
@@ -320,7 +330,6 @@ def draw_rgb_waveform(
         for sp in ax.spines.values():
             sp.set_color(_GRID)
             sp.set_linewidth(0.5)
-        ax.set_facecolor(_PANEL)
         ax.set_title(title, color=_TEXT, fontsize=9, pad=4)
         ax.set_ylim(0, 255)
 

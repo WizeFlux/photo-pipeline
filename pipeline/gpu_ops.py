@@ -394,7 +394,8 @@ def gpu_process(
         arr: numpy (H, W, 3) float32, 0-255
         params: dict with ev, gamma, highlights, shadows, contrast_amount,
                 s_curve, black_point, white_point, temperature, tint,
-                saturation, vibrance, lut_path, lut_intensity
+                saturation, vibrance, lut_path, lut_intensity,
+                scurve_custom (optional, 256 y-values, overrides s_curve)
 
     Returns:
         numpy (H, W, 3) float32, 0-255
@@ -405,10 +406,19 @@ def gpu_process(
         t, ev=params["ev"], gamma=params["gamma"],
         highlights=params["highlights"], shadows=params["shadows"],
     )
+    # Custom S-Curve overrides sigmoid s_curve — pass s_curve=0 to contrast
+    scurve_custom = params.get("scurve_custom")
+    s_curve_param = 0 if scurve_custom is not None else params["s_curve"]
     t = gpu_contrast(
-        t, amount=params["contrast_amount"], s_curve=params["s_curve"],
+        t, amount=params["contrast_amount"], s_curve=s_curve_param,
         black_point=params["black_point"], white_point=params["white_point"],
     )
+    # Apply custom S-Curve after contrast (as a 256-entry LUT)
+    if scurve_custom is not None:
+        import torch as _torch
+        lut_t = _torch.tensor(scurve_custom, dtype=t.dtype, device=t.device)
+        t = lut_t[t.clamp(0, 255).round().long()]
+
     t = gpu_white_balance(
         t, temperature=params["temperature"], tint=params["tint"],
     )

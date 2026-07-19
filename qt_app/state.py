@@ -42,7 +42,7 @@ PARAM_DEFAULTS: dict[str, Any] = {
 def params_from_values(values: dict[str, Any]) -> dict[str, Any]:
     """Normalize raw slider values into processing params dict."""
     lut = values.get("lut_path")
-    return {
+    params = {
         "ev": values["ev"], "gamma": values["gamma"],
         "highlights": values["highlights"], "shadows": values["shadows"],
         "contrast_amount": values["contrast_amount"], "s_curve": values["s_curve"],
@@ -52,6 +52,11 @@ def params_from_values(values: dict[str, Any]) -> dict[str, Any]:
         "lut_path": None if lut in (None, "None", "") else lut,
         "lut_intensity": values["lut_intensity"],
     }
+    # Optional custom S-Curve from interactive editor (256 y-values or None)
+    scurve = values.get("scurve_custom")
+    if scurve is not None:
+        params["scurve_custom"] = np.asarray(scurve, dtype=np.float32)
+    return params
 
 
 def params_from_config(cfg: dict) -> dict[str, Any]:

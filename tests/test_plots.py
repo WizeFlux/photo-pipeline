@@ -190,6 +190,7 @@ def test_clipping_map_3panel(sample_arrays):
 def test_plot_types_registry_complete():
     from qt_app.widgets.plots_panel import PLOT_TYPES
     assert PLOT_TYPES == [
+        "None",
         "Histograms",
         "Channel Deltas",
         "Tone Curve",
@@ -215,5 +216,10 @@ def test_plot_dispatcher_handles_all_types(sample_arrays, params):
     }
     for plot_type in PLOT_TYPES:
         fig = _fig()
-        _draw_plot(fig, plot_type, data)
-        assert len(fig.axes) >= 1, f"{plot_type} produced no axes"
+        drawn = _draw_plot(fig, plot_type, data)
+        if plot_type == "None":
+            assert drawn is False, "None should return False"
+            assert len(fig.axes) == 0, "None should clear the figure"
+        else:
+            assert drawn is True, f"{plot_type} should return True"
+            assert len(fig.axes) >= 1, f"{plot_type} produced no axes"

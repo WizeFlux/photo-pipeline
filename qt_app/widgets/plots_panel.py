@@ -1,11 +1,15 @@
-"""Analysis panel — 2 selectable plots in a row (no stats)."""
+"""Analysis panel — 2 selectable plots in a row (no stats).
+
+Right selector includes 'None' — when selected, the right canvas is hidden
+and the left canvas expands to full width (no splitter handle).
+"""
 
 from __future__ import annotations
 
 import numpy as np
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
-    QComboBox, QGroupBox, QHBoxLayout, QLabel, QSplitter, QVBoxLayout, QWidget,
+    QComboBox, QHBoxLayout, QLabel, QSplitter, QVBoxLayout, QWidget,
 )
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg
 from matplotlib.figure import Figure
@@ -19,6 +23,7 @@ from qt_app.state import load_profile_params
 
 
 PLOT_TYPES = [
+    "None",
     "Histograms",
     "Channel Deltas",
     "Tone Curve",
@@ -30,7 +35,11 @@ PLOT_TYPES = [
 ]
 
 
-def _draw_plot(fig: Figure, plot_type: str, data: dict) -> None:
+def _draw_plot(fig: Figure, plot_type: str, data: dict) -> bool:
+    """Render `plot_type` onto `fig`. Returns True if drawn, False if 'None'."""
+    if plot_type == "None":
+        fig.clear()
+        return False
     if plot_type == "Histograms":
         draw_histograms_row(
             fig, data["orig"], data["live"], data["profile"], data["profile_name"]
@@ -63,6 +72,7 @@ def _draw_plot(fig: Figure, plot_type: str, data: dict) -> None:
         draw_clipping_map(
             fig, data["orig"], data["live"], data["profile"], data["profile_name"]
         )
+    return True
 
 
 # ─── Plot canvas ─────────────────────────────────────────────────────────────
@@ -90,7 +100,7 @@ class _PlotCanvas(QWidget):
 # ─── Panel ───────────────────────────────────────────────────────────────────
 
 class PlotsPanel(QWidget):
-    """2 selectable plots in a row."""
+    """Left + Right selectable plots. Right='None' → left spans full width."""
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -102,22 +112,23 @@ class PlotsPanel(QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(4)
 
-        # Selector row (no group box / title)
+        # Selector row
         selector_row = QHBoxLayout()
         selector_row.setSpacing(8)
         selector_row.addWidget(QLabel("Left:"))
         self.selector_left = QComboBox()
         self.selector_left.addItems(PLOT_TYPES)
         self.selector_left.setCurrentText("Histograms")
-        self.selector_left.currentTextChanged.connect(lambda _: self._redraw_plots())
+        self.selector_left.currentTextChanged.connect(lambda _: self._on_selection_changed())
         selector_row.addWidget(self.selector_left, 1)
 
+        self._right_label = QLabel("Right:")
         selector_row.addSpacing(12)
-        selector_row.addWidget(QLabel("Right:"))
+        selector_row.addWidget(self._right_label)
         self.selector_right = QComboBox()
         self.selector_right.addItems(PLOT_TYPES)
         self.selector_right.setCurrentText("Tone Curve")
-        self.selector_right.currentTextChanged.connect(lambda _: self._redraw_plots())
+        self.selector_right.currentTextChanged.connect(lambda _: self._on_selection_changed())
         selector_row.addWidget(self.selector_right, 1)
         layout.addLayout(selector_row)
 
@@ -133,13 +144,31 @@ class PlotsPanel(QWidget):
         self.plot_splitter.setSizes([400, 400])
         layout.addWidget(self.plot_splitter, 1)
 
+    def _on_selection_changed(self) -> None:
+        """Show/hide right canvas depending on 'None' selection."""
+        right_is_none = self.selector_right.currentText() == "None"
+        if right_is_none:
+            self.canvas_right.hide()
+            self._right_label.hide()
+            self.selector_right.hide()
+            self.plot_splitter.setHandleWidth(0)
+        else:
+            self.canvas_right.show()
+            self._right_label.show()
+            self.selector_right.show()
+            self.plot_splitter.setHandleWidth(8)
+        self._redraw_plots()
+
     def _redraw_plots(self) -> None:
         if self._data is None:
             return
         _draw_plot(self.canvas_left.figure, self.selector_left.currentText(), self._data)
-        _draw_plot(self.canvas_right.figure, self.selector_right.currentText(), self._data)
         self.canvas_left.canvas.draw_idle()
-        self.canvas_right.canvas.draw_idle()
+        if self.selector_right.currentText() != "None":
+            _draw_plot(self.canvas_right.figure, self.selector_right.currentText(), self._data)
+            self.canvas_right.canvas.draw_idle()
+        else:
+            self.canvas_right.clear()
 
     def update_all(
         self,
