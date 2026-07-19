@@ -578,10 +578,22 @@ def run() -> None:
     app = QApplication(sys.argv)
     apply_theme(app)
     # Set app window icon (teal-orange S-curve color wheel)
-    icon_path = Path(__file__).parent / "assets" / "icon_512.png"
-    if icon_path.exists():
-        app.setWindowIcon(QIcon(str(icon_path)))
+    # On macOS: .icns preferred, falls back to PNG. Also set on the window.
+    assets_dir = Path(__file__).parent.parent / "assets"
+    icon = None
+    # macOS: prefer .icns
+    icns_path = assets_dir / "app.icns"
+    png_path = assets_dir / "icon_512.png"
+    if icns_path.exists():
+        icon = QIcon(str(icns_path))
+    if icon is None or icon.isNull():
+        if png_path.exists():
+            icon = QIcon(str(png_path))
+    if icon is not None and not icon.isNull():
+        app.setWindowIcon(icon)
     window = MainWindow()
+    if icon is not None and not icon.isNull():
+        window.setWindowIcon(icon)
     window.show()
     sys.exit(app.exec())
 
