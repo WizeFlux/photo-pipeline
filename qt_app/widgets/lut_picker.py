@@ -21,8 +21,8 @@ from pipeline.gpu_ops import gpu_process_from_pil
 from qt_app.state import list_luts
 
 
-_THUMB_W = 320
-_THUMB_H = 240
+_THUMB_W = 640
+_THUMB_H = 480
 _LABEL_H = 22
 
 
@@ -148,7 +148,7 @@ class LutPickerDialog(QDialog):
         super().__init__(parent)
         self.setWindowTitle("Pick LUT")
         self.setModal(True)
-        self.setMinimumWidth(1000)
+        self.setMinimumWidth(1800)
         self._image = image
         self._base_params = dict(base_params)
         self._lut_intensity = lut_intensity

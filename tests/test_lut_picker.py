@@ -109,10 +109,10 @@ def test_lut_thumb_uses_lanczos(app):
 
 
 def test_lut_thumb_size_increased(app):
-    """Thumbnails should be larger than the old 200x150."""
+    """Thumbnails should be 640x480 (doubled from 320x240)."""
     from qt_app.widgets.lut_picker import _THUMB_W, _THUMB_H
-    assert _THUMB_W > 200
-    assert _THUMB_H > 150
+    assert _THUMB_W == 640
+    assert _THUMB_H == 480
 
 
 def test_lut_thumb_worker_passes_intensity(app):
