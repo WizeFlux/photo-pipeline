@@ -38,6 +38,12 @@ from qt_app.widgets.plots_panel import PlotsPanel
 from qt_app.workers import BatchWorker, PreviewWorker
 
 
+# Throttle interval: while dragging a slider, the preview is regenerated at
+# most once per this many milliseconds. A final render always fires after the
+# user stops moving.
+_THROTTLE_MS = 500
+
+
 class MainWindow(QMainWindow):
     """Top-level window orchestrating all panels."""
 
@@ -52,9 +58,13 @@ class MainWindow(QMainWindow):
         self._profile_arr = None
         self._preview_worker: PreviewWorker | None = None
         self._batch_worker: BatchWorker | None = None
-        self._debounce = QTimer()
-        self._debounce.setSingleShot(True)
-        self._debounce.timeout.connect(self._run_preview)
+        # Throttle: render immediately on first change, then at most once per
+        # _THROTTLE_MS. A trailing render guarantees the final state is shown.
+        self._throttle = QTimer(self)
+        self._throttle.setSingleShot(True)
+        self._throttle.timeout.connect(self._run_preview)
+        self._last_render_ts: float = 0.0
+        self._pending_final: bool = False
         # Status reset timer — transient messages revert to the device label
         self._status_timer = QTimer(self)
         self._status_timer.setSingleShot(True)
@@ -403,11 +413,35 @@ class MainWindow(QMainWindow):
     # ─── Preview pipeline ─────────────────────────────────────────────────────
 
     def _schedule_preview(self, *_args) -> None:
-        self._debounce.start(150)
+        """Throttle preview renders to ≤1 per _THROTTLE_MS during drag.
+
+        - If enough time elapsed since the last render → render now.
+        - Otherwise → schedule a trailing render after _THROTTLE_MS.
+          The trailing timer is restarted on each new change, so continuous
+          dragging produces a steady ~1-render/500ms cadence plus a final
+          render when the user stops.
+        """
+        import time as _time
+        now = _time.perf_counter()
+        elapsed_ms = (now - self._last_render_ts) * 1000.0
+        if elapsed_ms >= _THROTTLE_MS:
+            # Enough time passed — render immediately and stamp the clock.
+            self._throttle.stop()
+            self._pending_final = False
+            self._last_render_ts = now
+            self._run_preview()
+        else:
+            # Too soon — schedule a trailing render. Restarting the timer
+            # on every change keeps the cadence bounded while dragging.
+            self._pending_final = True
+            self._throttle.start(_THROTTLE_MS - int(elapsed_ms))
 
     def _run_preview(self) -> None:
         if not self._image_path:
             return
+        # Stamp the throttle clock: a render is actually starting.
+        self._last_render_ts = time.perf_counter()
+        self._pending_final = False
 
         # Cancel any in-flight worker and wait for it to actually stop.
         if self._preview_worker is not None:

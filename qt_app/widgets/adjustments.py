@@ -2,6 +2,8 @@
 
 Groups: Exposure | Contrast | White Balance | Saturation | LUT
 All emit `paramsChanged(dict)` with the full 14-param set.
+
+The most recently moved slider is highlighted orange (`set_active`).
 """
 
 from __future__ import annotations
@@ -20,6 +22,22 @@ _COMPACT_QSS = """
 QGroupBox { margin-top: 11px; padding: 10px 6px 6px 6px; }
 """
 
+# Orange highlight applied to the most-recently moved slider's handle.
+_ACTIVE_SLIDER_QSS = """
+QSlider::handle:horizontal {
+    background: #ff8c00;
+    border: 1px solid #cc7000;
+    width: 12px;
+    height: 12px;
+    margin: -6px 0;
+    border-radius: 6px;
+}
+QSlider::sub-page:horizontal {
+    background: #ff8c00;
+    border-radius: 3px;
+}
+"""
+
 
 # ─── Labeled slider ──────────────────────────────────────────────────────────
 
@@ -27,6 +45,7 @@ class _LabeledSlider(QWidget):
     """Compact slider: name label | slider | value label, on one line."""
 
     valueChanged = Signal(float)
+    activated = Signal(object)  # emits self when the user grabs this slider
 
     def __init__(self, name: str, vmin, vmax, default, step: float = 1.0,
                  fmt: str = "{:.2f}", parent=None):
@@ -59,7 +78,24 @@ class _LabeledSlider(QWidget):
         layout.addWidget(self.slider, 1)
         layout.addWidget(self.value_label)
 
+        # sliderPressed → this slider becomes the "active" (orange) one.
+        # sliderMoved gives live updates during drag (before mouse release).
+        self.slider.sliderPressed.connect(self._on_pressed)
         self.slider.valueChanged.connect(self._on_changed)
+
+    # ── Active-highlight API ──────────────────────────────────────────────
+
+    def set_active(self, active: bool) -> None:
+        """Apply or remove the orange highlight on this slider."""
+        if active:
+            self.slider.setStyleSheet(_ACTIVE_SLIDER_QSS)
+            self.name_label.setStyleSheet("color: #ff8c00; font-weight: bold;")
+        else:
+            self.slider.setStyleSheet("")
+            self.name_label.setStyleSheet("")
+
+    def _on_pressed(self) -> None:
+        self.activated.emit(self)
 
     def _format(self, value) -> str:
         if self._is_float:
@@ -120,6 +156,7 @@ def _build_slider_group(title: str, specs: list[tuple], panel) -> QGroupBox:
     for key, label, vmin, vmax, default, step, fmt in specs:
         slider = _LabeledSlider(label, vmin, vmax, default, step, fmt)
         slider.valueChanged.connect(panel._on_param_changed)
+        slider.activated.connect(panel._set_active_slider)
         panel._sliders[key] = slider
         layout.addWidget(slider)
     layout.addStretch()
@@ -144,6 +181,8 @@ def _build_lut_group(panel) -> QGroupBox:
 
     panel._intensity_slider = _LabeledSlider("Intensity", 0, 1, 1.0, 0.01, "{:.2f}")
     panel._intensity_slider.valueChanged.connect(lambda *_: panel._on_param_changed())
+    panel._intensity_slider.activated.connect(panel._set_active_slider)
+    panel._sliders["lut_intensity"] = panel._intensity_slider
     layout.addWidget(panel._intensity_slider)
     layout.addStretch()
     return group
@@ -162,6 +201,7 @@ class AdjustmentsPanel(QWidget):
         self._sliders: dict[str, _LabeledSlider] = {}
         self._lut_combo: QComboBox | None = None
         self._intensity_slider: _LabeledSlider | None = None
+        self._active_slider: _LabeledSlider | None = None
         self._build()
         self._emit_params()
 
@@ -177,6 +217,15 @@ class AdjustmentsPanel(QWidget):
 
     def _on_param_changed(self, *_args) -> None:
         self._emit_params()
+
+    def _set_active_slider(self, slider: _LabeledSlider) -> None:
+        """Highlight the most-recently grabbed slider in orange."""
+        if self._active_slider is slider:
+            return
+        if self._active_slider is not None:
+            self._active_slider.set_active(False)
+        self._active_slider = slider
+        slider.set_active(True)
 
     def _emit_params(self) -> None:
         params = {key: slider.value() for key, slider in self._sliders.items()}
