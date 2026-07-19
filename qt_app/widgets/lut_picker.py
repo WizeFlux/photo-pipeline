@@ -101,7 +101,7 @@ class _LutThumb(QFrame):
         layout.addWidget(self._name_label)
 
     def set_image(self, arr: np.ndarray) -> None:
-        """Display the processed thumbnail at high quality."""
+        """Display the processed thumbnail at high quality (Retina-aware)."""
         arr = np.ascontiguousarray(arr, dtype=np.uint8)
         h, w = arr.shape[:2]
         # Center-crop to thumbnail aspect ratio
@@ -115,14 +115,21 @@ class _LutThumb(QFrame):
             new_h = int(w / target_ratio)
             y0 = (h - new_h) // 2
             arr = arr[y0:y0+new_h, :]
-        # High-quality resize (LANCZOS instead of BILINEAR)
-        img = Image.fromarray(arr).resize((_THUMB_W, _THUMB_H), Image.LANCZOS)
+        # Render at device pixels for Retina/HiDPI sharpness.
+        # CSS size is _THUMB_W × _THUMB_H; physical size is that × DPR.
+        dpr = self._image_label.devicePixelRatio() or 1.0
+        phys_w = int(_THUMB_W * dpr)
+        phys_h = int(_THUMB_H * dpr)
+        # High-quality resize (LANCZOS) at full physical resolution
+        img = Image.fromarray(arr).resize((phys_w, phys_h), Image.LANCZOS)
         arr = np.ascontiguousarray(np.array(img), dtype=np.uint8)
         h, w = arr.shape[:2]
         bytes_per_line = 3 * w
         self._bytes = arr.tobytes()  # prevent GC
         qimg = QImage(self._bytes, w, h, bytes_per_line, QImage.Format_RGB888)
         pix = QPixmap.fromImage(qimg)
+        # Tell Qt the pixmap is DPR× denser so it displays at CSS size
+        pix.setDevicePixelRatio(dpr)
         self._image_label.setPixmap(pix)
 
     def mousePressEvent(self, event):

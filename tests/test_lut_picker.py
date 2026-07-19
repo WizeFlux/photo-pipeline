@@ -71,6 +71,22 @@ def test_lut_thumb_set_image(app):
     assert thumb._image_label.pixmap().width() > 0
 
 
+def test_lut_thumb_set_image_retina_dpr(app):
+    """set_image should set devicePixelRatio on the pixmap for Retina."""
+    thumb = _LutThumb("test.cube")
+    arr = (np.random.rand(100, 150, 3) * 255).astype(np.uint8)
+    thumb.set_image(arr)
+    pix = thumb._image_label.pixmap()
+    assert pix is not None
+    dpr = thumb._image_label.devicePixelRatio() or 1.0
+    # Pixmap should have the correct DPR set
+    assert abs(pix.devicePixelRatio() - dpr) < 0.01
+    # Physical size should be CSS size × DPR
+    from qt_app.widgets.lut_picker import _THUMB_W, _THUMB_H
+    assert pix.width() == int(_THUMB_W * dpr)
+    assert pix.height() == int(_THUMB_H * dpr)
+
+
 def test_lut_thumb_name_label(app):
     """_LutThumb should show the LUT name in a separate label below image."""
     thumb = _LutThumb("luts/warm.cube")
