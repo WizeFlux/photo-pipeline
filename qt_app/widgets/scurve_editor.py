@@ -87,8 +87,6 @@ class SCurveEditor(QWidget):
         ax.set_facecolor(_PANEL)
         ax.set_xlim(-5, 260)
         ax.set_ylim(-5, 260)
-        # Grid
-        ax.grid(True, color=_GRID, linewidth=0.5, alpha=0.6)
         # Identity dashed line
         x = np.linspace(0, 255, 256)
         ax.plot(x, x, color="#666", linewidth=0.8, linestyle="--", alpha=0.5)
