@@ -9,3 +9,6 @@ matplotlib>=3.8.0
 
 # Optional — for app icon generation (assets/make_icons.sh)
 cairosvg>=2.7.0
+
+# Optional — for Windows .exe build (assets/make_windows_exe.sh)
+pyinstaller>=6.0.0

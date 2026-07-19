@@ -12,4 +12,19 @@ core.*
 
 # User content — keep local, don't track
 luts/
-profiles/assets/icon_*.png
+profiles/
+
+# Generated icons (regenerate with assets/make_icons.sh)
+assets/icon_*.png
+
+# PyInstaller build artifacts
+build/
+dist/
+*.spec
+
+# macOS app bundle (regenerate with assets/make_macos_app.sh)
+PhotoPipeline.app/
+
+# Coverage reports
+.coverage
+htmlcov/
