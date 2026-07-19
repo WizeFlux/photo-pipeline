@@ -56,6 +56,9 @@ class SCurveEditor(QWidget):
         self._fig = Figure(figsize=(2.5, 1.8), facecolor=_BG)
         self._canvas = FigureCanvasQTAgg(self._fig)
         self._canvas.setMinimumHeight(70)
+        # Enable mouse tracking so motion_notify_event fires during drag
+        # (otherwise matplotlib only reports motion when no button is held).
+        self._canvas.setMouseTracking(True)
         self._canvas.mpl_connect("button_press_event", self._on_press)
         self._canvas.mpl_connect("button_release_event", self._on_release)
         self._canvas.mpl_connect("motion_notify_event", self._on_motion)
@@ -122,10 +125,14 @@ class SCurveEditor(QWidget):
         return np.clip(y_out, 0, 255)
 
     def _nearest_point(self, x: float, y: float) -> int | None:
-        """Find the nearest control point within a threshold."""
+        """Find the nearest control point within a threshold.
+
+        Threshold is in data coordinates (0-255 range). We use a generous
+        threshold so small canvases are still usable.
+        """
         dists = np.sqrt((self.POINT_X - x)**2 + (self._points_y - y)**2)
         idx = int(np.argmin(dists))
-        if dists[idx] < 25:  # pixel threshold (in data coords)
+        if dists[idx] < 40:  # data-coord threshold
             return idx
         return None
 
@@ -142,20 +149,24 @@ class SCurveEditor(QWidget):
     def _on_release(self, event) -> None:
         if self._dragging:
             self._dragging = False
-            self._active_idx = None
+            # Keep _active_idx so the point stays orange after release.
+            # The point only deactivates when another point is grabbed or
+            # the editor loses focus.
             self._redraw()
             self.curveChanged.emit(self._compute_curve())
 
     def _on_motion(self, event) -> None:
+        # Only move when dragging (mouse button held + active point)
         if not self._dragging or self._active_idx is None:
             return
         if event.ydata is None:
             return
         # Clamp y to [0, 255]
         new_y = max(0, min(255, event.ydata))
-        self._points_y[self._active_idx] = new_y
-        self._redraw()
-        self.curveChanged.emit(self._compute_curve())
+        if new_y != self._points_y[self._active_idx]:
+            self._points_y[self._active_idx] = new_y
+            self._redraw()
+            self.curveChanged.emit(self._compute_curve())
 
     def wheelEvent(self, event) -> None:
         """Mouse wheel moves the active control point (or nearest by x).

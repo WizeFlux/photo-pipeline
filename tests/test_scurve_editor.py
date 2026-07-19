@@ -202,3 +202,69 @@ def test_active_point_color_is_orange():
     """Active control point color constant should be orange."""
     from qt_app.widgets.scurve_editor import _POINT_ACTIVE
     assert _POINT_ACTIVE == "#ff8c00"  # orange
+
+
+def test_drag_moves_point(app):
+    """Dragging a control point should change its y value."""
+    from unittest.mock import MagicMock
+    ed = SCurveEditor()
+    def make_event(xdata, ydata, button=1):
+        e = MagicMock()
+        e.xdata = xdata
+        e.ydata = ydata
+        e.button = button
+        return e
+    # Press on middle point (128, 128)
+    ed._on_press(make_event(128, 128))
+    assert ed._active_idx == 2
+    assert ed._dragging is True
+    # Move to y=200
+    ed._on_motion(make_event(128, 200))
+    assert ed._points_y[2] == 200.0
+    # Release
+    ed._on_release(make_event(128, 200))
+    assert ed._dragging is False
+    assert ed._points_y[2] == 200.0
+
+
+def test_active_idx_persists_after_release(app):
+    """Active point should stay orange (active_idx persists) after release."""
+    from unittest.mock import MagicMock
+    ed = SCurveEditor()
+    def make_event(xdata, ydata, button=1):
+        e = MagicMock()
+        e.xdata = xdata
+        e.ydata = ydata
+        e.button = button
+        return e
+    ed._on_press(make_event(128, 128))
+    assert ed._active_idx == 2
+    ed._on_release(make_event(128, 128))
+    # active_idx should still be 2 (not None) so point stays orange
+    assert ed._active_idx == 2
+
+
+def test_drag_emits_curve_changed(app):
+    """Dragging should emit curveChanged signal."""
+    from unittest.mock import MagicMock
+    ed = SCurveEditor()
+    received = []
+    ed.curveChanged.connect(lambda c: received.append(c))
+    def make_event(xdata, ydata, button=1):
+        e = MagicMock()
+        e.xdata = xdata
+        e.ydata = ydata
+        e.button = button
+        return e
+    ed._on_press(make_event(128, 128))
+    ed._on_motion(make_event(128, 200))
+    ed._on_release(make_event(128, 200))
+    # At least 2 emissions: during motion + on release
+    assert len(received) >= 2
+    assert all(c.shape == (256,) for c in received)
+
+
+def test_mouse_tracking_enabled(app):
+    """Canvas should have mouse tracking enabled for drag motion events."""
+    ed = SCurveEditor()
+    assert ed._canvas.hasMouseTracking() is True
