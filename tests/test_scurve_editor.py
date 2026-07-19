@@ -139,7 +139,7 @@ def test_figure_subplots_adjust_tight(app):
 
 
 def test_wheel_moves_point_up(app):
-    """Scroll up should increase the active point's y value."""
+    """Inverted: scroll up decreases the active point's y value."""
     ed = SCurveEditor()
     ed._active_idx = 2  # middle point
     before = ed._points_y[2]
@@ -148,11 +148,11 @@ def test_wheel_moves_point_up(app):
     we = QWheelEvent(pos, global_pos, QPoint(0, 0), QPoint(0, 120),
                      Qt.NoButton, Qt.NoModifier, Qt.ScrollBegin, False)
     ed.wheelEvent(we)
-    assert ed._points_y[2] > before
+    assert ed._points_y[2] < before
 
 
 def test_wheel_moves_point_down(app):
-    """Scroll down should decrease the active point's y value."""
+    """Inverted: scroll down increases the active point's y value."""
     ed = SCurveEditor()
     ed._active_idx = 2
     ed._points_y[2] = 150  # start above identity
@@ -162,20 +162,21 @@ def test_wheel_moves_point_down(app):
     we = QWheelEvent(pos, global_pos, QPoint(0, 0), QPoint(0, -120),
                      Qt.NoButton, Qt.NoModifier, Qt.ScrollBegin, False)
     ed.wheelEvent(we)
-    assert ed._points_y[2] < before
+    assert ed._points_y[2] > before
 
 
 def test_wheel_clamps_to_range(app):
     """Wheel should not move points outside [0, 255]."""
     ed = SCurveEditor()
     ed._active_idx = 0
-    ed._points_y[0] = 0
+    ed._points_y[0] = 255
     pos = QPointF(ed._canvas.rect().center())
     global_pos = QPointF(ed._canvas.mapToGlobal(ed._canvas.rect().center()))
+    # Inverted: scroll up = decrease, but we're at 255 so test scroll down = increase, clamped
     we = QWheelEvent(pos, global_pos, QPoint(0, 0), QPoint(0, -120 * 100),
                      Qt.NoButton, Qt.NoModifier, Qt.ScrollBegin, False)
     ed.wheelEvent(we)
-    assert ed._points_y[0] == 0
+    assert ed._points_y[0] == 255
 
 
 def test_wheel_activates_point(app):
@@ -287,8 +288,8 @@ def test_wheel_intercepted_by_event_filter(app):
                      Qt.NoButton, Qt.NoModifier, Qt.ScrollBegin, False)
     app.sendEvent(canvas, we)
     app.processEvents()
-    # Middle point should have moved up by 1 (fine resolution)
-    assert ed._points_y[2] == 129.0
+    # Middle point should have moved down by 1 (inverted: scroll up = decrease)
+    assert ed._points_y[2] == 127.0
     assert ed._active_idx == 2
 
 
