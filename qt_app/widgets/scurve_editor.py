@@ -50,7 +50,7 @@ class SCurveEditor(QWidget):
 
     def _build(self) -> None:
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(2, 2, 2, 2)
+        layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
 
         self._fig = Figure(figsize=(2.5, 1.8), facecolor=_BG)
@@ -66,6 +66,9 @@ class SCurveEditor(QWidget):
         self._fig.clear()
         self._fig.set_facecolor(_BG)
         ax = self._fig.add_subplot(111)
+        # Tight margins — minimize top/bottom padding so the curve fills
+        # the available canvas height.
+        self._fig.subplots_adjust(left=0.02, right=0.98, top=0.98, bottom=0.02)
         ax.set_facecolor(_PANEL)
         ax.set_xlim(-5, 260)
         ax.set_ylim(-5, 260)

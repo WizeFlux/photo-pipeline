@@ -121,12 +121,21 @@ def test_canvas_min_height_compact(app):
 
 
 def test_layout_margins_compact(app):
-    """Layout margins should be small (≤ 4px)."""
+    """Layout margins should be zero (minimal padding)."""
     ed = SCurveEditor()
     layout = ed.layout()
     margins = layout.contentsMargins()
-    assert margins.left() <= 4 and margins.top() <= 4
-    assert margins.right() <= 4 and margins.bottom() <= 4
+    assert margins.left() == 0 and margins.top() == 0
+    assert margins.right() == 0 and margins.bottom() == 0
+
+
+def test_figure_subplots_adjust_tight(app):
+    """Figure subplots_adjust should have minimal top/bottom margins."""
+    ed = SCurveEditor()
+    fig = ed._fig
+    # After _redraw, subplots_adjust was called with tight margins
+    assert fig.subplotpars.top >= 0.95
+    assert fig.subplotpars.bottom <= 0.05
 
 
 def test_wheel_moves_point_up(app):
