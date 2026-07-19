@@ -1,38 +1,42 @@
 """LUT picker dialog — shows preview thumbnails of all available LUTs.
 
 Each thumbnail is the current image processed with all current slider
-settings + the given LUT applied. Clicking a thumbnail closes the dialog
-and emits lutSelected with the chosen LUT path.
+settings (including lut_intensity) + the given LUT applied. Clicking a
+thumbnail closes the dialog and emits lutSelected with the chosen LUT path.
 """
 
 from __future__ import annotations
 
+import os
 import numpy as np
 from PIL import Image
-from PySide6.QtCore import Qt, Signal, QThread, Signal as _Sig
+from PySide6.QtCore import Qt, Signal, QThread
 from PySide6.QtGui import QPixmap, QImage
 from PySide6.QtWidgets import (
     QDialog, QGridLayout, QLabel, QScrollArea, QVBoxLayout, QWidget,
-    QSizePolicy, QPushButton, QHBoxLayout,
+    QPushButton, QHBoxLayout, QFrame,
 )
 
 from pipeline.gpu_ops import gpu_process_from_pil
-from qt_app.state import list_luts, params_from_values
+from qt_app.state import list_luts
 
 
-_THUMB_W = 200
-_THUMB_H = 150
+_THUMB_W = 320
+_THUMB_H = 240
+_LABEL_H = 22
 
 
 class _LutThumbWorker(QThread):
     """Generate one LUT thumbnail in a background thread."""
     thumb_ready = Signal(str, object)  # lut_path, np.ndarray (or None on error)
 
-    def __init__(self, image: Image.Image, base_params: dict, lut_path: str, parent=None):
+    def __init__(self, image: Image.Image, base_params: dict, lut_path: str,
+                 intensity: float, parent=None):
         super().__init__(parent)
         self._image = image
         self._base_params = dict(base_params)
         self._lut_path = lut_path
+        self._intensity = intensity
 
     def run(self) -> None:
         try:
@@ -41,7 +45,7 @@ class _LutThumbWorker(QThread):
             params = dict(self._base_params)
             if self._lut_path and self._lut_path != "None":
                 params["lut_path"] = self._lut_path
-                params["lut_intensity"] = 1.0
+                params["lut_intensity"] = self._intensity
             else:
                 params["lut_path"] = None
             result = gpu_process_from_pil(self._image, params)
@@ -52,29 +56,55 @@ class _LutThumbWorker(QThread):
             self.thumb_ready.emit(self._lut_path, None)
 
 
-class _LutThumb(QLabel):
-    """A single LUT thumbnail — clickable, shows name + preview."""
+def _short_name(lut_path: str) -> str:
+    """Short display name for a LUT path."""
+    if lut_path == "None":
+        return "None (no LUT)"
+    return os.path.basename(lut_path)
+
+
+class _LutThumb(QFrame):
+    """A single LUT thumbnail — clickable, shows preview + name label below."""
 
     clicked = Signal(str)
 
     def __init__(self, lut_path: str, parent=None):
         super().__init__(parent)
         self._lut_path = lut_path
-        self.setFixedSize(_THUMB_W, _THUMB_H + 20)
-        self.setAlignment(Qt.AlignCenter)
+        self.setFixedSize(_THUMB_W, _THUMB_H + _LABEL_H)
         self.setStyleSheet(
-            "QLabel { background-color: #1a1a1a; border: 2px solid #333;"
-            "  border-radius: 4px; color: #888; }"
-            "QLabel:hover { border-color: #ff8c00; }"
+            "QFrame { background-color: #1a1a1a; border: 2px solid #333;"
+            "  border-radius: 4px; }"
+            "QFrame:hover { border-color: #ff8c00; }"
+            "QLabel { border: none; background: transparent; }"
         )
-        name = lut_path if lut_path != "None" else "None (no LUT)"
-        self.setText(f"⏳\n{name}")
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
+
+        # Image label (top)
+        self._image_label = QLabel()
+        self._image_label.setFixedSize(_THUMB_W, _THUMB_H)
+        self._image_label.setAlignment(Qt.AlignCenter)
+        self._image_label.setText("⏳")
+        self._image_label.setStyleSheet("color: #888; font-size: 16px;")
+        layout.addWidget(self._image_label)
+
+        # Name label (bottom, separate from image)
+        self._name_label = QLabel(_short_name(lut_path))
+        self._name_label.setFixedHeight(_LABEL_H)
+        self._name_label.setAlignment(Qt.AlignCenter)
+        self._name_label.setStyleSheet(
+            "color: #ccc; font-size: 11px; font-weight: bold;"
+            "  background-color: #222;"
+        )
+        layout.addWidget(self._name_label)
 
     def set_image(self, arr: np.ndarray) -> None:
-        """Display the processed thumbnail."""
+        """Display the processed thumbnail at high quality."""
         arr = np.ascontiguousarray(arr, dtype=np.uint8)
         h, w = arr.shape[:2]
-        # Crop/resize to thumbnail aspect ratio
+        # Center-crop to thumbnail aspect ratio
         target_ratio = _THUMB_W / _THUMB_H
         img_ratio = w / h
         if img_ratio > target_ratio:
@@ -85,30 +115,15 @@ class _LutThumb(QLabel):
             new_h = int(w / target_ratio)
             y0 = (h - new_h) // 2
             arr = arr[y0:y0+new_h, :]
-        # Resize to thumbnail size
-        img = Image.fromarray(arr).resize((_THUMB_W, _THUMB_H), Image.BILINEAR)
-        arr = np.array(img)
+        # High-quality resize (LANCZOS instead of BILINEAR)
+        img = Image.fromarray(arr).resize((_THUMB_W, _THUMB_H), Image.LANCZOS)
+        arr = np.ascontiguousarray(np.array(img), dtype=np.uint8)
         h, w = arr.shape[:2]
         bytes_per_line = 3 * w
-        qimg = QImage(arr.tobytes(), w, h, bytes_per_line, QImage.Format_RGB888)
         self._bytes = arr.tobytes()  # prevent GC
+        qimg = QImage(self._bytes, w, h, bytes_per_line, QImage.Format_RGB888)
         pix = QPixmap.fromImage(qimg)
-        # Add name label at bottom
-        from PySide6.QtGui import QPainter, QFont, QColor, QPen
-        canvas = QPixmap(_THUMB_W, _THUMB_H + 20)
-        canvas.fill(QColor("#1a1a1a"))
-        painter = QPainter(canvas)
-        painter.drawPixmap(0, 0, pix)
-        painter.setPen(QColor("#ccc"))
-        font = QFont("Sans", 8)
-        painter.setFont(font)
-        name = self._lut_path if self._lut_path != "None" else "None"
-        # Shorten name
-        if len(name) > 28:
-            name = "..." + name[-25:]
-        painter.drawText(4, _THUMB_H + 14, name)
-        painter.end()
-        self.setPixmap(canvas)
+        self._image_label.setPixmap(pix)
 
     def mousePressEvent(self, event):
         if event.button() == Qt.LeftButton:
@@ -121,13 +136,15 @@ class LutPickerDialog(QDialog):
 
     lutSelected = Signal(str)
 
-    def __init__(self, image: Image.Image, base_params: dict, parent=None):
+    def __init__(self, image: Image.Image, base_params: dict,
+                 lut_intensity: float = 1.0, parent=None):
         super().__init__(parent)
         self.setWindowTitle("Pick LUT")
         self.setModal(True)
-        self.setMinimumWidth(900)
+        self.setMinimumWidth(1000)
         self._image = image
         self._base_params = dict(base_params)
+        self._lut_intensity = lut_intensity
         self._workers: list[_LutThumbWorker] = []
         self._thumbs: dict[str, _LutThumb] = {}
         self._build()
@@ -141,7 +158,7 @@ class LutPickerDialog(QDialog):
         scroll.setWidgetResizable(True)
         scroll_content = QWidget()
         grid = QGridLayout(scroll_content)
-        grid.setSpacing(6)
+        grid.setSpacing(8)
         grid.setContentsMargins(4, 4, 4, 4)
 
         luts = list_luts()
@@ -151,8 +168,10 @@ class LutPickerDialog(QDialog):
             thumb.clicked.connect(self._on_thumb_clicked)
             grid.addWidget(thumb, i // cols, i % cols)
             self._thumbs[lut] = thumb
-            # Start worker
-            worker = _LutThumbWorker(self._image, self._base_params, lut)
+            # Start worker — pass current lut_intensity so it affects previews
+            worker = _LutThumbWorker(
+                self._image, self._base_params, lut, self._lut_intensity
+            )
             worker.thumb_ready.connect(self._on_thumb_ready)
             self._workers.append(worker)
             worker.start()

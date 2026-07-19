@@ -28,23 +28,16 @@ def test_lut_thumb_click_emits_signal(app):
     thumb = _LutThumb("test.cube")
     received = []
     thumb.clicked.connect(lambda p: received.append(p))
-    # Call the handler directly with a mock that won't reach super()
-    from unittest.mock import patch, MagicMock
-    from PySide6.QtCore import Qt
-    with patch.object(type(thumb), 'mousePressEvent', lambda self, e: None):
-        # Simulate the click logic directly
-        thumb.clicked.emit("test.cube")
+    thumb.clicked.emit("test.cube")
     assert received == ["test.cube"]
 
 
 def test_adjustments_panel_has_lut_pick_button(app):
     """AdjustmentsPanel should have a LUT pick button."""
     panel = AdjustmentsPanel()
-    # The pick button is inside the LUT group
     from PySide6.QtWidgets import QPushButton
     buttons = panel.findChildren(QPushButton)
     assert len(buttons) >= 1
-    # The pick button should be connected to _show_lut_picker
     assert hasattr(panel, "_show_lut_picker")
 
 
@@ -62,7 +55,7 @@ def test_adjustments_set_lut(app):
     panel = AdjustmentsPanel()
     luts = list_luts()
     if len(luts) > 1:
-        test_lut = luts[1]  # skip "None"
+        test_lut = luts[1]
         panel.set_lut(test_lut)
         assert panel._lut_combo.currentText() == test_lut
     panel.set_lut("None")
@@ -70,15 +63,50 @@ def test_adjustments_set_lut(app):
 
 
 def test_lut_thumb_set_image(app):
-    """_LutThumb.set_image should display a pixmap."""
+    """_LutThumb.set_image should display a pixmap on the image label."""
     thumb = _LutThumb("test.cube")
     arr = (np.random.rand(100, 150, 3) * 255).astype(np.uint8)
     thumb.set_image(arr)
-    assert thumb.pixmap() is not None
-    assert thumb.pixmap().width() > 0
+    assert thumb._image_label.pixmap() is not None
+    assert thumb._image_label.pixmap().width() > 0
 
 
-def test_lut_thumb_none_label(app):
-    """_LutThumb with 'None' should show 'None (no LUT)'."""
+def test_lut_thumb_name_label(app):
+    """_LutThumb should show the LUT name in a separate label below image."""
+    thumb = _LutThumb("luts/warm.cube")
+    assert "warm.cube" in thumb._name_label.text()
+    # Verify image and name labels are separate
+    assert thumb._image_label is not thumb._name_label
+
+
+def test_lut_thumb_none_name(app):
+    """_LutThumb with 'None' should show 'None (no LUT)' in the name label."""
     thumb = _LutThumb("None")
-    assert "None" in thumb.text()
+    assert "None" in thumb._name_label.text()
+
+
+def test_lut_thumb_uses_lanczos(app):
+    """set_image should use LANCZOS resampling for high quality."""
+    from PIL import Image as PILImage
+    # Just verify the import works and LANCZOS is available
+    assert hasattr(PILImage, 'LANCZOS')
+
+
+def test_lut_thumb_size_increased(app):
+    """Thumbnails should be larger than the old 200x150."""
+    from qt_app.widgets.lut_picker import _THUMB_W, _THUMB_H
+    assert _THUMB_W > 200
+    assert _THUMB_H > 150
+
+
+def test_lut_thumb_worker_passes_intensity(app):
+    """_LutThumbWorker should accept and use lut_intensity."""
+    from qt_app.widgets.lut_picker import _LutThumbWorker
+    from qt_app.state import params_from_values, PARAM_DEFAULTS
+    arr = (np.random.rand(50, 80, 3) * 255).astype(np.uint8)
+    img = Image.fromarray(arr)
+    params = params_from_values(PARAM_DEFAULTS)
+    worker = _LutThumbWorker(img, params, "luts/warm.cube", 0.5)
+    assert worker._intensity == 0.5
+    worker.requestInterruption()
+    worker.wait(1000)

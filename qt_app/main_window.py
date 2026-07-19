@@ -314,16 +314,17 @@ class MainWindow(QMainWindow):
             return
         from qt_app.widgets.lut_picker import LutPickerDialog
         from qt_app.workers import _load_preview_image
-        # Build base params WITHOUT LUT — each thumbnail adds its own LUT
+        # Build base params WITHOUT LUT path — each thumbnail adds its own.
+        # Keep lut_intensity so the picker reflects the current intensity.
         params = params_from_values(self.adjustments.get_params())
+        current_intensity = params.get("lut_intensity", 1.0)
         params["lut_path"] = None
-        params["lut_intensity"] = 1.0
         try:
             img = _load_preview_image(self._image_path)
         except Exception as exc:
             self._set_status(f"⚠ Cannot load image: {exc}")
             return
-        dialog = LutPickerDialog(img, params, self)
+        dialog = LutPickerDialog(img, params, current_intensity, self)
         dialog.lutSelected.connect(self._on_lut_selected)
         dialog.exec()
 
