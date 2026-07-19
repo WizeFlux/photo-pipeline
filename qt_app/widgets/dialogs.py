@@ -90,6 +90,7 @@ class SettingsDialog(QDialog):
         self.setWindowTitle("⚙ Settings")
         self.setModal(False)
         self.setMinimumWidth(320)
+        self._plots_enabled = True  # synced by set_settings; toggle is in toolbar
         _apply_dialog_font(self)
         layout = QVBoxLayout(self)
         layout.setContentsMargins(12, 12, 12, 12)
@@ -124,13 +125,8 @@ class SettingsDialog(QDialog):
         preview_form.addRow("Cache quality:", self.cache_quality_spin)
         layout.addWidget(preview_group)
 
-        # ── Performance section ──
-        perf_group = QGroupBox("Performance")
-        perf_layout = QVBoxLayout(perf_group)
-        self.plots_checkbox = QCheckBox("Enable plots (histograms, tone curve)")
-        self.plots_checkbox.setChecked(True)
-        perf_layout.addWidget(self.plots_checkbox)
-        layout.addWidget(perf_group)
+        # Plots toggle moved to the main toolbar (next to Preview profile).
+        # Performance section removed — was only the plots checkbox.
 
         buttons = QDialogButtonBox(QDialogButtonBox.Ok)
         buttons.accepted.connect(self._on_accept)
@@ -142,7 +138,7 @@ class SettingsDialog(QDialog):
             self.quality_spin.value(),
             self.cache_quality_spin.value(),
             self.preview_w_spin.value(),
-            self.plots_checkbox.isChecked(),
+            self._plots_enabled,  # kept in sync by set_settings
         )
         self.accept()
 
@@ -151,17 +147,17 @@ class SettingsDialog(QDialog):
                 self.quality_spin.value(),
                 self.cache_quality_spin.value(),
                 self.preview_w_spin.value(),
-                self.plots_checkbox.isChecked())
+                self._plots_enabled)
 
     def set_settings(self, fmt: str, quality: int, cache_quality: int,
                      preview_w: int, plots_enabled: bool) -> None:
+        self._plots_enabled = plots_enabled
         idx = self.format_combo.findText(fmt)
         if idx >= 0:
             self.format_combo.setCurrentIndex(idx)
         self.quality_spin.setValue(quality)
         self.cache_quality_spin.setValue(cache_quality)
         self.preview_w_spin.setValue(preview_w)
-        self.plots_checkbox.setChecked(plots_enabled)
 
 
 class BatchDialog(QDialog):

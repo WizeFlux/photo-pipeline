@@ -21,7 +21,7 @@ from pathlib import Path
 
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtWidgets import (
-    QComboBox, QFileDialog, QFrame, QHBoxLayout, QLabel, QMainWindow,
+    QCheckBox, QComboBox, QFileDialog, QFrame, QHBoxLayout, QLabel, QMainWindow,
     QMessageBox, QPushButton, QSizePolicy, QSpinBox, QSplitter, QVBoxLayout,
     QWidget,
 )
@@ -129,6 +129,13 @@ class MainWindow(QMainWindow):
         self._refresh_profile_combo(self.third_profile_combo)
         self.third_profile_combo.currentTextChanged.connect(self._on_third_profile_changed)
         toolbar.addWidget(self.third_profile_combo)
+
+        toolbar.addSpacing(12)
+        self.plots_checkbox = QCheckBox("Plots")
+        self.plots_checkbox.setChecked(True)
+        self.plots_checkbox.setToolTip("Enable/disable analysis plots panel")
+        self.plots_checkbox.toggled.connect(self._on_plots_toggled)
+        toolbar.addWidget(self.plots_checkbox)
 
         toolbar.addStretch()
 
@@ -280,7 +287,13 @@ class MainWindow(QMainWindow):
             self._clear_preview_cache()
             from qt_app.workers import set_preview_max_w
             set_preview_max_w(preview_w)
-        # Plots toggle
+        # Plots toggle — sync the toolbar checkbox (source of truth is now there)
+        if plots_enabled != self._plots_enabled:
+            self.plots_checkbox.setChecked(plots_enabled)  # triggers _on_plots_toggled
+        self._set_status(f"⚙ {fmt} q{quality} | preview {preview_w}px | cache {cache_quality}%")
+
+    def _on_plots_toggled(self, plots_enabled: bool) -> None:
+        """Show/hide the plots panel. Triggered by the toolbar checkbox."""
         plots_toggled = plots_enabled != self._plots_enabled
         self._plots_enabled = plots_enabled
         self.plots_panel.setVisible(plots_enabled)
@@ -292,7 +305,6 @@ class MainWindow(QMainWindow):
             self.plots_panel.update_all(
                 self._orig_arr, self._live_arr, self._profile_arr, prof_name, params
             )
-        self._set_status(f"⚙ {fmt} q{quality} | preview {preview_w}px | cache {cache_quality}% | plots {'on' if plots_enabled else 'off'}")
 
     def _clear_preview_cache(self) -> None:
         """Clear the preview cache directory."""
